@@ -16,7 +16,7 @@ package abcupdater
 
 import "fmt"
 
-// CheckAppVersion placeholder function
+// CheckAppVersion placeholder function.
 func CheckAppVersion() {
 	fmt.Printf("TODO Version Check")
 }
