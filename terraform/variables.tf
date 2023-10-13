@@ -18,11 +18,11 @@ variable "project_id" {
 }
 
 variable "bucket_name" {
-  description = "The name of the GCS bucket"
+  description = "The name of the GCS bucket."
   type        = string
 }
 
-variable "bucket_object_admin_members" {
-  description = "IAM storage object admin members"
+variable "bucket_object_admins" {
+  description = "IAM storage object admin members."
   type        = list(string)
 }

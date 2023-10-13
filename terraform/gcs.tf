@@ -22,18 +22,16 @@ resource "google_storage_bucket" "default" {
   uniform_bucket_level_access = true
 }
 
-resource "google_storage_bucket_iam_member" "member" {
-  for_each = toset(var.bucket_object_admin_members)
+resource "google_storage_bucket_iam_member" "object_admins" {
+  for_each = toset(var.bucket_object_admins)
 
   bucket = google_storage_bucket.default.name
   role   = "roles/storage.objectAdmin"
   member = each.key
 }
 
-resource "google_storage_bucket_iam_binding" "binding" {
+resource "google_storage_bucket_iam_member" "object_viewers" {
   bucket = google_storage_bucket.default.name
   role = "roles/storage.objectViewer"
-  members = [
-    "allUsers",
-  ]
+  member = "allUsers"
 }
