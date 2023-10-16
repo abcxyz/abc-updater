@@ -6,3 +6,6 @@
 
 # Go readability
 *.go    @abcxyz/go-readability
+
+# Terraform readability
+*.tf    @abcxyz/terraform-readability
