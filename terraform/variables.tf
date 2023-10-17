@@ -26,3 +26,17 @@ variable "bucket_object_admins" {
   description = "IAM storage object admin members."
   type        = list(string)
 }
+
+variable "name" {
+  type        = string
+  description = "The name of this project."
+  validation {
+    condition     = can(regex("^[a-z][0-9a-z-]+[0-9a-z]$", var.name))
+    error_message = "Name can only contain lowercase letters, numbers, hyphens(-) and must start with letter. Name will be truncated and suffixed with at random string if it exceeds requirements for a given resource."
+  }
+}
+
+variable "domains" {
+  type        = list(string)
+  description = "Domain names to use for the HTTPS Global Load Balancer (e.g. [\"my-project.e2e.tycho.joonix.net\"])."
+}
