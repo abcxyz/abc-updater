@@ -131,4 +131,8 @@ resource "google_compute_backend_bucket" "default" {
   description = "${var.name} backend bucket"
   bucket_name = google_storage_bucket.default.name
   enable_cdn  = true
+
+  depends_on = [
+    google_project_service.services["compute.googleapis.com"],
+  ]
 }
