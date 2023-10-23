@@ -33,9 +33,11 @@ type AppResponse struct {
 	CurrentVersion string `json:"current_version"`
 }
 
-// Can be overwritten via ABC_UPDATER_URL env var.
-const abcUpdaterURLDefault = "https://abc-updater-autopush.tycho.joonix.net"
-const requestTimeoutSeconds = 2
+const (
+	// Can be overwritten via ABC_UPDATER_URL env var.
+	abcUpdaterURLDefault  = "https://abc-updater-autopush.tycho.joonix.net"
+	requestTimeoutSeconds = 2
+)
 
 // CheckAppVersion checks if a newer version of an app is available. Relevant update info will be
 // written to the writer provided if applicable.
