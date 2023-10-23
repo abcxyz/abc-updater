@@ -16,6 +16,7 @@ package abcupdater
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -97,7 +98,7 @@ func TestCheckAppVersion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var b bytes.Buffer
-			err := CheckAppVersion(tc.appID, tc.version, &b)
+			err := CheckAppVersion(context.Background(), tc.appID, tc.version, &b)
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
 			}

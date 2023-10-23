@@ -15,6 +15,7 @@
 package abcupdater
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,7 +42,7 @@ const (
 
 // CheckAppVersion checks if a newer version of an app is available. Relevant update info will be
 // written to the writer provided if applicable.
-func CheckAppVersion(appID, version string, w io.Writer) error {
+func CheckAppVersion(ctx context.Context, appID, version string, w io.Writer) error {
 	if !semver.IsValid(version) {
 		return errors.New("version is not a valid semantic version string")
 	}
@@ -55,7 +56,12 @@ func CheckAppVersion(appID, version string, w io.Writer) error {
 		requestURL = overrideURL
 	}
 
-	resp, err := client.Get(fmt.Sprintf("%s/%s/data.json", requestURL, appID))
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/%s/data.json", requestURL, appID), nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to make request: %w", err)
 	}
