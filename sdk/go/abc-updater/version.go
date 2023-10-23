@@ -20,11 +20,28 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/sethvargo/go-envconfig"
 	"golang.org/x/mod/semver"
 )
+
+// CheckVersionParams are the parameters for checking for application updates.
+type CheckVersionParams struct {
+	// The ID of the application to check.
+	AppID string
+
+	// The version of the app to check for updates.
+	Version string
+
+	// The writer where the update info will be written to.
+	Writer io.Writer
+
+	// Optional configuration options, will be set to defaults if not specified.
+	// They will be overwritten by any environment variables present.
+	Config *ABCUpdaterConfig
+}
 
 // AppResponse is the response returned with app data.
 type AppResponse struct {
@@ -34,7 +51,7 @@ type AppResponse struct {
 	CurrentVersion string `json:"current_version"`
 }
 
-type abcUpdaterConfig struct {
+type ABCUpdaterConfig struct {
 	ServerURL      string        `env:"ABC_UPDATER_URL,default=https://abc-updater-autopush.tycho.joonix.net"`
 	RequestTimeout time.Duration `env:"ABC_UPDATER_TIMEOUT,default=2m"`
 }
@@ -43,13 +60,17 @@ const appDataURLFormat = "%s/%s/data.json"
 
 // CheckAppVersion checks if a newer version of an app is available. Relevant update info will be
 // written to the writer provided if applicable.
-func CheckAppVersion(ctx context.Context, appID, version string, w io.Writer) error {
-	var c abcUpdaterConfig
-	if err := envconfig.Process(ctx, &c); err != nil {
+func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
+	c := params.Config
+	if err := envconfig.Process(ctx, c); err != nil {
 		return fmt.Errorf("failed to processes env vars: %w", err)
 	}
 
-	if !semver.IsValid(version) {
+	if _, err := url.ParseRequestURI(c.ServerURL); err != nil {
+		return fmt.Errorf("url from env var is not valid")
+	}
+
+	if !semver.IsValid(params.Version) {
 		return fmt.Errorf("version is not a valid semantic version string")
 	}
 
@@ -57,7 +78,7 @@ func CheckAppVersion(ctx context.Context, appID, version string, w io.Writer) er
 		Timeout: c.RequestTimeout,
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf(appDataURLFormat, c.ServerURL, appID), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf(appDataURLFormat, c.ServerURL, params.AppID), nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -82,8 +103,8 @@ func CheckAppVersion(ctx context.Context, appID, version string, w io.Writer) er
 		return fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	if semver.Compare(version, "v"+result.CurrentVersion) < 0 {
-		if _, err := w.Write([]byte(fmt.Sprintf("A new version of %s is available! Your current version is %s. Version %s is available at %s.\n", result.AppName, version, result.CurrentVersion, result.GitHubURL))); err != nil {
+	if semver.Compare(params.Version, "v"+result.CurrentVersion) < 0 {
+		if _, err := params.Writer.Write([]byte(fmt.Sprintf("A new version of %s is available! Your current version is %s. Version %s is available at %s.\n", result.AppName, params.Version, result.CurrentVersion, result.GitHubURL))); err != nil {
 			return fmt.Errorf("failed to write output: %w", err)
 		}
 	}

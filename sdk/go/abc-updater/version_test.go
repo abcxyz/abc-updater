@@ -27,8 +27,9 @@ import (
 	"github.com/abcxyz/pkg/testutil"
 )
 
-//nolint:paralleltest // can't set env vars in parallel tests
 func TestCheckAppVersion(t *testing.T) {
+	t.Parallel()
+
 	sampleAppResponse, err := json.Marshal(AppResponse{
 		AppID:          "sample_app_1",
 		AppName:        "Sample App 1",
@@ -50,7 +51,9 @@ func TestCheckAppVersion(t *testing.T) {
 		fmt.Fprintln(w, string(sampleAppResponse))
 	}))
 
-	t.Setenv("ABC_UPDATER_URL", ts.URL)
+	config := &ABCUpdaterConfig{
+		ServerURL: ts.URL,
+	}
 
 	t.Cleanup(func() {
 		ts.Close()
@@ -98,7 +101,13 @@ func TestCheckAppVersion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var b bytes.Buffer
-			err := CheckAppVersion(context.Background(), tc.appID, tc.version, &b)
+			params := &CheckVersionParams{
+				AppID:   tc.appID,
+				Version: tc.version,
+				Writer:  &b,
+				Config:  config,
+			}
+			err := CheckAppVersion(context.Background(), params)
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
 			}
