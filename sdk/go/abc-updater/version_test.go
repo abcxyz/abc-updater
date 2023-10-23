@@ -42,6 +42,7 @@ func TestCheckAppVersion(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(r.RequestURI, "sample_app_1/data.json") {
 			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintln(w, "not found")
 			return
 		}
 
@@ -82,7 +83,7 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "invalid_app_id",
 			appID:   "bad_app",
 			version: "v1.0.0",
-			wantErr: "unable to retrieve data for requested app",
+			wantErr: "not found",
 		},
 		{
 			name:    "invalid_version",

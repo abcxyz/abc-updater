@@ -69,7 +69,12 @@ func CheckAppVersion(ctx context.Context, appID, version string, w io.Writer) er
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unable to retrieve data for requested app")
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("unable to read response body")
+		}
+
+		return fmt.Errorf(string(b))
 	}
 
 	result := &AppResponse{}
