@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/abcxyz/pkg/testutil"
+	"github.com/sethvargo/go-envconfig"
 )
 
 func TestCheckAppVersion(t *testing.T) {
@@ -51,9 +52,9 @@ func TestCheckAppVersion(t *testing.T) {
 		fmt.Fprintln(w, string(sampleAppResponse))
 	}))
 
-	config := &ABCUpdaterConfig{
-		ServerURL: ts.URL,
-	}
+	lookuper := envconfig.MapLookuper(map[string]string{
+		"ABC_UPDATER_URL": ts.URL,
+	})
 
 	t.Cleanup(func() {
 		ts.Close()
@@ -102,10 +103,10 @@ func TestCheckAppVersion(t *testing.T) {
 			t.Parallel()
 			var b bytes.Buffer
 			params := &CheckVersionParams{
-				AppID:   tc.appID,
-				Version: tc.version,
-				Writer:  &b,
-				Config:  config,
+				AppID:          tc.appID,
+				Version:        tc.version,
+				Writer:         &b,
+				ConfigLookuper: lookuper,
 			}
 			err := CheckAppVersion(context.Background(), params)
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {

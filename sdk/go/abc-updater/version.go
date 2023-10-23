@@ -38,9 +38,8 @@ type CheckVersionParams struct {
 	// The writer where the update info will be written to.
 	Writer io.Writer
 
-	// Optional configuration options, will be set to defaults if not specified.
-	// They will be overwritten by any environment variables present.
-	Config *ABCUpdaterConfig
+	// An optional configLookuper to supply config values. Will default to os environment variables.
+	ConfigLookuper envconfig.Lookuper
 }
 
 // AppResponse is the response returned with app data.
@@ -51,7 +50,7 @@ type AppResponse struct {
 	CurrentVersion string `json:"current_version"`
 }
 
-type ABCUpdaterConfig struct {
+type abcUpdaterConfig struct {
 	ServerURL      string        `env:"ABC_UPDATER_URL,default=https://abc-updater-autopush.tycho.joonix.net"`
 	RequestTimeout time.Duration `env:"ABC_UPDATER_TIMEOUT,default=2m"`
 }
@@ -61,8 +60,11 @@ const appDataURLFormat = "%s/%s/data.json"
 // CheckAppVersion checks if a newer version of an app is available. Relevant update info will be
 // written to the writer provided if applicable.
 func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
-	c := params.Config
-	if err := envconfig.Process(ctx, c); err != nil {
+	if params.ConfigLookuper == nil {
+		params.ConfigLookuper = envconfig.OsLookuper()
+	}
+	var c abcUpdaterConfig
+	if err := envconfig.ProcessWith(ctx, &c, params.ConfigLookuper); err != nil {
 		return fmt.Errorf("failed to processes env vars: %w", err)
 	}
 
