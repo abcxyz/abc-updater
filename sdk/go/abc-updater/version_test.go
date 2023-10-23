@@ -25,7 +25,6 @@ import (
 	"testing"
 
 	"github.com/abcxyz/pkg/testutil"
-	"github.com/google/go-cmp/cmp"
 )
 
 //nolint:paralleltest // can't set env vars in parallel tests
@@ -33,7 +32,7 @@ func TestCheckAppVersion(t *testing.T) {
 	sampleAppResponse, err := json.Marshal(AppResponse{
 		AppID:          "sample_app_1",
 		AppName:        "Sample App 1",
-		GithubURL:      "https://github.com/abcxyz/sample_app_1",
+		GitHubURL:      "https://github.com/abcxyz/sample_app_1",
 		CurrentVersion: "1.0.0",
 	})
 	if err != nil {
@@ -104,8 +103,8 @@ func TestCheckAppVersion(t *testing.T) {
 			}
 
 			got := b.String()
-			if diff := cmp.Diff(got, tc.want); diff != "" {
-				t.Errorf("incorrect output written, diff (-got +want):\n%s", diff)
+			if got != tc.want {
+				t.Errorf("incorrect output, expected %q, got %q", tc.want, got)
 			}
 		})
 	}
