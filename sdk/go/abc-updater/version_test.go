@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -28,13 +27,18 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+//nolint:paralleltest // can't set env vars in parallel tests
 func TestCheckAppVersion(t *testing.T) {
-	sampleAppResponse, _ := json.Marshal(AppResponse{
+	sampleAppResponse, err := json.Marshal(AppResponse{
 		AppID:          "sample_app_1",
 		AppName:        "Sample App 1",
 		GithubURL:      "https://github.com/abcxyz/sample_app_1",
 		CurrentVersion: "1.0.0",
 	})
+	if err != nil {
+		t.Errorf("failed to encode json %v", err)
+	}
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(r.RequestURI, "sample_app_1/data.json") {
 			w.WriteHeader(http.StatusNotFound)
@@ -45,10 +49,9 @@ func TestCheckAppVersion(t *testing.T) {
 		fmt.Fprintln(w, string(sampleAppResponse))
 	}))
 
-	os.Setenv("ABC_UPDATER_URL", ts.URL)
+	t.Setenv("ABC_UPDATER_URL", ts.URL)
 
 	t.Cleanup(func() {
-		os.Setenv("ABC_UPDATER_URL", "")
 		ts.Close()
 	})
 

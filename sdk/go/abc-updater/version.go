@@ -57,7 +57,7 @@ func CheckAppVersion(appID, version string, w io.Writer) error {
 
 	resp, err := client.Get(fmt.Sprintf("%s/%s/data.json", requestURL, appID))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to make request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -67,11 +67,13 @@ func CheckAppVersion(appID, version string, w io.Writer) error {
 
 	result := &AppResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-		return err
+		return fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	if semver.Compare(version, "v"+result.CurrentVersion) < 0 {
-		w.Write([]byte(fmt.Sprintf("A new version of %s is available! Your current version is %s. Version %s is available at %s.\n", result.AppName, version, result.CurrentVersion, result.GithubURL)))
+		if _, err := w.Write([]byte(fmt.Sprintf("A new version of %s is available! Your current version is %s. Version %s is available at %s.\n", result.AppName, version, result.CurrentVersion, result.GithubURL))); err != nil {
+			return fmt.Errorf("failed to write output: %w", err)
+		}
 	}
 
 	return nil
