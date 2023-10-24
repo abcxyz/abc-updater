@@ -55,7 +55,10 @@ type abcUpdaterConfig struct {
 	RequestTimeout time.Duration `env:"ABC_UPDATER_TIMEOUT,default=2m"`
 }
 
-const appDataURLFormat = "%s/%s/data.json"
+const (
+	appDataURLFormat      = "%s/%s/data.json"
+	maxErrorResponseBytes = 2048
+)
 
 // CheckAppVersion checks if a newer version of an app is available. Relevant update info will be
 // written to the writer provided if applicable.
@@ -92,7 +95,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		b, err := io.ReadAll(resp.Body)
+		b, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorResponseBytes))
 		if err != nil {
 			return fmt.Errorf("unable to read response body")
 		}
@@ -100,11 +103,12 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 		return fmt.Errorf(string(b))
 	}
 
-	result := &AppResponse{}
-	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+	var result AppResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return fmt.Errorf("failed to decode response: %w", err)
 	}
 
+	// semver requires v prefix. Current version data is stored without prefix so prepend v.
 	if semver.Compare(params.Version, "v"+result.CurrentVersion) < 0 {
 		if _, err := params.Writer.Write([]byte(fmt.Sprintf("A new version of %s is available! Your current version is %s. Version %s is available at %s.\n", result.AppName, params.Version, result.CurrentVersion, result.GitHubURL))); err != nil {
 			return fmt.Errorf("failed to write output: %w", err)

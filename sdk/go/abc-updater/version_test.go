@@ -44,7 +44,7 @@ func TestCheckAppVersion(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasSuffix(r.RequestURI, "sample_app_1/data.json") {
 			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprintln(w, "not found")
+			fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
 			return
 		}
 
@@ -87,7 +87,7 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "invalid_app_id",
 			appID:   "bad_app",
 			version: "v1.0.0",
-			wantErr: "not found",
+			wantErr: http.StatusText(http.StatusNotFound),
 		},
 		{
 			name:    "invalid_version",
@@ -99,8 +99,10 @@ func TestCheckAppVersion(t *testing.T) {
 
 	for _, tc := range cases {
 		tc := tc
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			var b bytes.Buffer
 			params := &CheckVersionParams{
 				AppID:          tc.appID,
@@ -108,14 +110,14 @@ func TestCheckAppVersion(t *testing.T) {
 				Writer:         &b,
 				ConfigLookuper: lookuper,
 			}
+
 			err := CheckAppVersion(context.Background(), params)
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
 			}
 
-			got := b.String()
-			if got != tc.want {
-				t.Errorf("incorrect output, expected %q, got %q", tc.want, got)
+			if got, want := b.String(), tc.want; got != want {
+				t.Errorf("incorrect output, expected %q to be %q", got, want)
 			}
 		})
 	}
