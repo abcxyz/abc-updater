@@ -63,6 +63,11 @@ const (
 // CheckAppVersion checks if a newer version of an app is available. Relevant update info will be
 // written to the writer provided if applicable.
 func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
+	optOutSettings := initOptOutSettings(params.AppID)
+	if optOutSettings.MuteAllVersionUpdates {
+		return nil
+	}
+
 	if params.ConfigLookuper == nil {
 		params.ConfigLookuper = envconfig.OsLookuper()
 	}
@@ -110,6 +115,9 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 
 	// semver requires v prefix. Current version data is stored without prefix so prepend v.
 	if semver.Compare(params.Version, "v"+result.CurrentVersion) < 0 {
+		if optOutSettings.shouldIgnoreVersion(result.CurrentVersion) {
+			return nil
+		}
 		if _, err := params.Writer.Write([]byte(fmt.Sprintf("A new version of %s is available! Your current version is %s. Version %s is available at %s.\n", result.AppName, params.Version, result.CurrentVersion, result.GitHubURL))); err != nil {
 			return fmt.Errorf("failed to write output: %w", err)
 		}
