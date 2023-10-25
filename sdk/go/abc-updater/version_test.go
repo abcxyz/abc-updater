@@ -24,7 +24,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abcxyz/pkg/testutil"
 	"github.com/sethvargo/go-envconfig"
 )
 
@@ -65,13 +64,12 @@ func TestCheckAppVersion(t *testing.T) {
 		appID   string
 		version string
 		want    string
-		wantErr string
 	}{
 		{
 			name:    "outdated_version",
 			appID:   "sample_app_1",
 			version: "v0.0.1",
-			want: fmt.Sprintf("A new version of %s is available! Your current version is %s. Version %s is available at %s.\n",
+			want: fmt.Sprintf(outputFormat,
 				"Sample App 1",
 				"v0.0.1",
 				"1.0.0",
@@ -87,13 +85,13 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "invalid_app_id",
 			appID:   "bad_app",
 			version: "v1.0.0",
-			wantErr: http.StatusText(http.StatusNotFound),
+			want:    "",
 		},
 		{
 			name:    "invalid_version",
 			appID:   "sample_app_1",
 			version: "1.0.0.12.2",
-			wantErr: "version is not a valid semantic version string",
+			want:    "",
 		},
 	}
 
@@ -111,13 +109,10 @@ func TestCheckAppVersion(t *testing.T) {
 				ConfigLookuper: lookuper,
 			}
 
-			err := CheckAppVersion(context.Background(), params)
-			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
-				t.Error(diff)
-			}
+			CheckAppVersion(context.Background(), params)
 
 			if got, want := b.String(), tc.want; got != want {
-				t.Errorf("incorrect output, expected %q to be %q", got, want)
+				t.Errorf("incorrect output got=%s, want=%s", got, want)
 			}
 		})
 	}

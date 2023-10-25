@@ -33,6 +33,7 @@ type CheckVersionParams struct {
 	AppID string
 
 	// The version of the app to check for updates.
+	// Should be of form vMAJOR[.MINOR[.PATCH[-PRERELEASE][+BUILD]]] (e.g., v1.0.1)
 	Version string
 
 	// The writer where the update info will be written to.
@@ -42,7 +43,8 @@ type CheckVersionParams struct {
 	ConfigLookuper envconfig.Lookuper
 }
 
-// AppResponse is the response returned with app data.
+// AppResponse is the response object for an app version request.
+// It contains information about the most recent version for a given app.
 type AppResponse struct {
 	AppID          string `json:"app_id"`
 	AppName        string `json:"app_name"`
@@ -50,33 +52,38 @@ type AppResponse struct {
 	CurrentVersion string `json:"current_version"`
 }
 
-type abcUpdaterConfig struct {
+type config struct {
 	ServerURL      string        `env:"ABC_UPDATER_URL,default=https://abc-updater-autopush.tycho.joonix.net"`
 	RequestTimeout time.Duration `env:"ABC_UPDATER_TIMEOUT,default=2m"`
 }
 
 const (
 	appDataURLFormat      = "%s/%s/data.json"
+	outputFormat          = "A new version of %s is available! Your current version is %s. Version %s is available at %s.\n"
 	maxErrorResponseBytes = 2048
 )
 
 // CheckAppVersion checks if a newer version of an app is available. Relevant update info will be
 // written to the writer provided if applicable.
-func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
-	if params.ConfigLookuper == nil {
-		params.ConfigLookuper = envconfig.OsLookuper()
-	}
-	var c abcUpdaterConfig
-	if err := envconfig.ProcessWith(ctx, &c, params.ConfigLookuper); err != nil {
-		return fmt.Errorf("failed to processes env vars: %w", err)
+func CheckAppVersion(ctx context.Context, params *CheckVersionParams) {
+	lookuper := params.ConfigLookuper
+	if lookuper == nil {
+		lookuper = envconfig.OsLookuper()
 	}
 
+	var c config
+	if err := envconfig.ProcessWith(ctx, &c, lookuper); err != nil {
+		return
+	}
+
+	// Use ParseRequestURI over Parse because Parse validation is more loose and will accept
+	// things such as relative paths without a host.
 	if _, err := url.ParseRequestURI(c.ServerURL); err != nil {
-		return fmt.Errorf("url from env var is not valid")
+		return
 	}
 
 	if !semver.IsValid(params.Version) {
-		return fmt.Errorf("version is not a valid semantic version string")
+		return
 	}
 
 	client := &http.Client{
@@ -85,35 +92,29 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf(appDataURLFormat, c.ServerURL, params.AppID), nil)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to make request: %w", err)
+		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		b, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorResponseBytes))
-		if err != nil {
-			return fmt.Errorf("unable to read response body")
-		}
-
-		return fmt.Errorf(string(b))
+		return
 	}
 
 	var result AppResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
+		return
 	}
 
 	// semver requires v prefix. Current version data is stored without prefix so prepend v.
 	if semver.Compare(params.Version, "v"+result.CurrentVersion) < 0 {
-		if _, err := params.Writer.Write([]byte(fmt.Sprintf("A new version of %s is available! Your current version is %s. Version %s is available at %s.\n", result.AppName, params.Version, result.CurrentVersion, result.GitHubURL))); err != nil {
-			return fmt.Errorf("failed to write output: %w", err)
+		outStr := fmt.Sprintf(outputFormat, result.AppName, params.Version, result.CurrentVersion, result.GitHubURL)
+		if _, err := params.Writer.Write([]byte(outStr)); err != nil {
+			return
 		}
 	}
-
-	return nil
 }
