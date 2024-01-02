@@ -15,76 +15,88 @@
 package abcupdater
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/sethvargo/go-envconfig"
 )
 
-//nolint:paralleltest // can't set env vars in parallel tests
 func TestLoadOptOutSettings(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
-		name    string
-		appID   string
-		envVars map[string]string
-		want    *optOutSettings
+		name        string
+		appID       string
+		lookuperMap map[string]string
+		want        *optOutSettings
 	}{
 		{
-			name:    "no_env_vars_set",
-			appID:   "sample_app_1",
-			envVars: map[string]string{},
+			name:        "no_env_vars_set",
+			appID:       "sample_app_1",
+			lookuperMap: map[string]string{},
 			want: &optOutSettings{
-				MuteAllVersionUpdates: false,
-				MuteVersion:           "",
+				ignoreAllVersions: false,
+				IgnoreVersions:    nil,
+				errorLoading:      false,
 			},
 		},
 		{
-			name:  "set_mute_all",
+			name:  "set_ignore_all",
 			appID: "sample_app_1",
-			envVars: map[string]string{
-				muteUpdatesAllEnvVar("sample_app_1"): "1",
+			lookuperMap: map[string]string{
+				"SAMPLE_APP_1_IGNORE_VERSIONS": "all",
 			},
 			want: &optOutSettings{
-				MuteAllVersionUpdates: true,
-				MuteVersion:           "",
+				ignoreAllVersions: true,
+				IgnoreVersions:    []string{"all"},
+				errorLoading:      false,
 			},
 		},
 		{
-			name:  "set_mute_version",
+			name:  "set_ignore_single_version",
 			appID: "sample_app_1",
-			envVars: map[string]string{
-				muteUpdatesVersionEnvVar("sample_app_1"): "1.0.0",
+			lookuperMap: map[string]string{
+				"SAMPLE_APP_1_IGNORE_VERSIONS": "1.0.0",
 			},
 			want: &optOutSettings{
-				MuteAllVersionUpdates: false,
-				MuteVersion:           "1.0.0",
+				ignoreAllVersions: false,
+				IgnoreVersions:    []string{"1.0.0"},
+				errorLoading:      false,
 			},
 		},
 		{
-			name:  "set_mute_version_and_all",
+			name:  "set_ignore_multiple_version",
 			appID: "sample_app_1",
-			envVars: map[string]string{
-				muteUpdatesVersionEnvVar("sample_app_1"): "1.0.0",
-				muteUpdatesAllEnvVar("sample_app_1"):     "1",
+			lookuperMap: map[string]string{
+				"SAMPLE_APP_1_IGNORE_VERSIONS": "<1.0.0,2.0.0,3.0.0",
 			},
 			want: &optOutSettings{
-				MuteAllVersionUpdates: true,
-				MuteVersion:           "1.0.0",
+				ignoreAllVersions: false,
+				IgnoreVersions:    []string{"<1.0.0", "2.0.0", "3.0.0"},
+				errorLoading:      false,
 			},
 		},
 	}
 
-	//nolint:paralleltest // can't set env vars in parallel tests
 	for _, tc := range cases {
 		tc := tc
 
 		t.Run(tc.name, func(t *testing.T) {
-			for name, value := range tc.envVars {
-				t.Setenv(name, value)
+			t.Parallel()
+
+			config := loadOptOutSettings(context.Background(), envconfig.MapLookuper(tc.lookuperMap), tc.appID)
+
+			if diff := cmp.Diff(tc.want.IgnoreVersions, config.IgnoreVersions); diff != "" {
+				t.Errorf("Config unexpected diff (-want,+got):\n%s", diff)
 			}
 
-			config := loadOptOutSettings(tc.appID)
-			if diff := cmp.Diff(tc.want, config); diff != "" {
-				t.Errorf("Config unexpected diff (-want,+got):\n%s", diff)
+			if got, want := config.ignoreAllVersions, tc.want.ignoreAllVersions; got != want {
+				t.Errorf("incorrect ignoreAllVersions got=%t, want=%t", got, want)
+			}
+
+			if got, want := config.errorLoading, tc.want.errorLoading; got != want {
+				t.Errorf("incorrect errorLoading got=%t, want=%t", got, want)
 			}
 		})
 	}

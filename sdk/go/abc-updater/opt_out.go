@@ -15,36 +15,36 @@
 package abcupdater
 
 import (
-	"os"
+	"context"
 	"strings"
+
+	"github.com/sethvargo/go-envconfig"
 )
 
 type optOutSettings struct {
-	MuteAllVersionUpdates bool
-	MuteVersion           string
+	IgnoreVersions    []string `env:"IGNORE_VERSIONS"`
+	ignoreAllVersions bool
+	errorLoading      bool
 }
 
-func loadOptOutSettings(appID string) *optOutSettings {
-	settings := &optOutSettings{}
-	if disabled := os.Getenv(muteUpdatesAllEnvVar(appID)); disabled != "" {
-		settings.MuteAllVersionUpdates = true
+// loadOptOutSettings will return an optOutSettings struct populated based on the lookuper provided.
+func loadOptOutSettings(ctx context.Context, lookuper envconfig.Lookuper, appID string) *optOutSettings {
+	l := envconfig.PrefixLookuper(envVarPrefix(appID), lookuper)
+	var c optOutSettings
+	if err := envconfig.ProcessWith(ctx, &c, l); err != nil {
+		c.errorLoading = true
+		return &c
 	}
 
-	if ignoreVersion := os.Getenv(muteUpdatesVersionEnvVar(appID)); ignoreVersion != "" {
-		settings.MuteVersion = ignoreVersion
+	for _, version := range c.IgnoreVersions {
+		if strings.ToLower(version) == "all" {
+			c.ignoreAllVersions = true
+		}
 	}
 
-	return settings
+	return &c
 }
 
-func abcAppEnvVarPrefix(appID string) string {
-	return "ABC_UPDATER_APP_" + strings.ToUpper(appID)
-}
-
-func muteUpdatesAllEnvVar(appID string) string {
-	return abcAppEnvVarPrefix(appID) + "_MUTE_UPDATES_ALL"
-}
-
-func muteUpdatesVersionEnvVar(appID string) string {
-	return abcAppEnvVarPrefix(appID) + "_MUTE_UPDATES_VERSION"
+func envVarPrefix(appID string) string {
+	return strings.ToUpper(appID) + "_"
 }
