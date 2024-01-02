@@ -123,3 +123,98 @@ func TestCheckAppVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckAppVersion_optOut(t *testing.T) {
+	t.Parallel()
+
+	sampleAppResponse, err := json.Marshal(AppResponse{
+		AppID:          "sample_app_1",
+		AppName:        "Sample App 1",
+		GitHubURL:      "https://github.com/abcxyz/sample_app_1",
+		CurrentVersion: "1.0.0",
+	})
+	if err != nil {
+		t.Errorf("failed to encode json %v", err)
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.RequestURI, "sample_app_1/data.json") {
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, string(sampleAppResponse))
+	}))
+
+	lookuper := envconfig.MapLookuper(map[string]string{
+		"ABC_UPDATER_URL": ts.URL,
+	})
+
+	t.Cleanup(func() {
+		ts.Close()
+	})
+
+	cases := []struct {
+		name    string
+		appID   string
+		version string
+		want    string
+		wantErr string
+	}{
+		{
+			name:    "outdated_version",
+			appID:   "sample_app_1",
+			version: "v0.0.1",
+			want: fmt.Sprintf("A new version of %s is available! Your current version is %s. Version %s is available at %s.\n",
+				"Sample App 1",
+				"v0.0.1",
+				"1.0.0",
+				"https://github.com/abcxyz/sample_app_1"),
+		},
+		{
+			name:    "current_version",
+			appID:   "sample_app_1",
+			version: "v1.0.0",
+			want:    "",
+		},
+		{
+			name:    "invalid_app_id",
+			appID:   "bad_app",
+			version: "v1.0.0",
+			wantErr: http.StatusText(http.StatusNotFound),
+		},
+		{
+			name:    "invalid_version",
+			appID:   "sample_app_1",
+			version: "1.0.0.12.2",
+			wantErr: "version is not a valid semantic version string",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var b bytes.Buffer
+			params := &CheckVersionParams{
+				AppID:          tc.appID,
+				Version:        tc.version,
+				Writer:         &b,
+				ConfigLookuper: lookuper,
+			}
+
+			err := CheckAppVersion(context.Background(), params)
+			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
+				t.Error(diff)
+			}
+
+			if got, want := b.String(), tc.want; got != want {
+				t.Errorf("incorrect output, expected %q to be %q", got, want)
+			}
+		})
+	}
+}
