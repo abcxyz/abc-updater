@@ -117,3 +117,116 @@ func TestCheckAppVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckAppVersion_optOut(t *testing.T) {
+	t.Parallel()
+
+	sampleAppResponse, err := json.Marshal(AppResponse{
+		AppID:          "sample_app_1",
+		AppName:        "Sample App 1",
+		GitHubURL:      "https://github.com/abcxyz/sample_app_1",
+		CurrentVersion: "1.0.0",
+	})
+	if err != nil {
+		t.Errorf("failed to encode json %v", err)
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.RequestURI, "sample_app_1/data.json") {
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, string(sampleAppResponse))
+	}))
+
+	lookuper := envconfig.MapLookuper(map[string]string{
+		"ABC_UPDATER_URL": ts.URL,
+	})
+
+	t.Cleanup(func() {
+		ts.Close()
+	})
+
+	cases := []struct {
+		name           string
+		appID          string
+		version        string
+		optOutSettings optOutSettings
+		want           string
+	}{
+		{
+			name:    "no_opt_out",
+			appID:   "sample_app_1",
+			version: "v0.0.1",
+			optOutSettings: optOutSettings{
+				MuteAllVersionUpdates: false,
+				MuteVersion:           "",
+			},
+			want: fmt.Sprintf(outputFormat,
+				"Sample App 1",
+				"v0.0.1",
+				"1.0.0",
+				"https://github.com/abcxyz/sample_app_1"),
+		},
+		{
+			name:    "opt_out_all",
+			appID:   "sample_app_1",
+			version: "v1.0.0",
+			optOutSettings: optOutSettings{
+				MuteAllVersionUpdates: true,
+				MuteVersion:           "",
+			},
+			want: "",
+		},
+		{
+			name:    "opt_out_version_match",
+			appID:   "sample_app_1",
+			version: "v1.0.0",
+			optOutSettings: optOutSettings{
+				MuteAllVersionUpdates: false,
+				MuteVersion:           "1.0.0",
+			},
+			want: "",
+		},
+		{
+			name:    "opt_out_version_no_match",
+			appID:   "sample_app_1",
+			version: "v0.0.1",
+			optOutSettings: optOutSettings{
+				MuteAllVersionUpdates: false,
+				MuteVersion:           "0.0.9",
+			},
+			want: fmt.Sprintf(outputFormat,
+				"Sample App 1",
+				"v0.0.1",
+				"1.0.0",
+				"https://github.com/abcxyz/sample_app_1"),
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var b bytes.Buffer
+			params := &CheckVersionParams{
+				AppID:          tc.appID,
+				Version:        tc.version,
+				Writer:         &b,
+				ConfigLookuper: lookuper,
+				OptOutSettings: &tc.optOutSettings,
+			}
+
+			CheckAppVersion(context.Background(), params)
+
+			if got, want := b.String(), tc.want; got != want {
+				t.Errorf("incorrect output, expected %q to be %q", got, want)
+			}
+		})
+	}
+}

@@ -41,6 +41,9 @@ type CheckVersionParams struct {
 
 	// An optional configLookuper to supply config values. Will default to os environment variables.
 	ConfigLookuper envconfig.Lookuper
+
+	// Optional optOutSettings to override settings set by environment variables.
+	OptOutSettings *optOutSettings
 }
 
 // AppResponse is the response object for an app version request.
@@ -66,6 +69,14 @@ const (
 // CheckAppVersion checks if a newer version of an app is available. Relevant update info will be
 // written to the writer provided if applicable.
 func CheckAppVersion(ctx context.Context, params *CheckVersionParams) {
+	optOutSettings := params.OptOutSettings
+	if optOutSettings == nil {
+		optOutSettings = initOptOutSettings(params.AppID)
+	}
+	if optOutSettings.MuteAllVersionUpdates {
+		return
+	}
+
 	lookuper := params.ConfigLookuper
 	if lookuper == nil {
 		lookuper = envconfig.OsLookuper()
@@ -112,6 +123,9 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) {
 
 	// semver requires v prefix. Current version data is stored without prefix so prepend v.
 	if semver.Compare(params.Version, "v"+result.CurrentVersion) < 0 {
+		if optOutSettings.shouldIgnoreVersion(result.CurrentVersion) {
+			return
+		}
 		outStr := fmt.Sprintf(outputFormat, result.AppName, params.Version, result.CurrentVersion, result.GitHubURL)
 		if _, err := params.Writer.Write([]byte(outStr)); err != nil {
 			return
