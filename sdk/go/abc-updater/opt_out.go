@@ -18,7 +18,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/Masterminds/semver/v3"
+	"github.com/hashicorp/go-version"
 	"github.com/sethvargo/go-envconfig"
 )
 
@@ -56,24 +56,22 @@ func (o *optOutSettings) allVersionUpdatesIgnored() bool {
 }
 
 // isIgnored returns true if the version specified should be ignored.
-func (o *optOutSettings) isIgnored(version string) bool {
+func (o *optOutSettings) isIgnored(checkVersion string) bool {
 	if o.allVersionUpdatesIgnored() {
 		return true
 	}
-
 	for _, ignoredVersion := range o.IgnoreVersions {
-		c, err := semver.NewConstraint(ignoredVersion)
+		c, err := version.NewConstraint(ignoredVersion)
 		if err != nil {
 			continue
 		}
 
-		v, err := semver.NewVersion(version)
+		v, err := version.NewVersion(checkVersion)
 		if err != nil {
 			continue
 		}
 
-		satisfies := c.Check(v)
-		if satisfies {
+		if c.Check(v) {
 			return true
 		}
 	}

@@ -272,7 +272,7 @@ func TestIsIgnored(t *testing.T) {
 			version: "1.1.0-alpha",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
-				IgnoreVersions:    []string{">1.0.0-alpha"},
+				IgnoreVersions:    []string{"1.1.0-alpha"},
 				errorLoading:      false,
 			},
 			want: true,
