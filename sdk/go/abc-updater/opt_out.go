@@ -18,6 +18,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/sethvargo/go-envconfig"
 )
 
@@ -47,4 +48,33 @@ func loadOptOutSettings(ctx context.Context, lookuper envconfig.Lookuper, appID 
 
 func envVarPrefix(appID string) string {
 	return strings.ToUpper(appID) + "_"
+}
+
+func (o *optOutSettings) allVersionUpdatesIgnored() bool {
+	return o.errorLoading || o.ignoreAllVersions
+}
+
+func (o *optOutSettings) isIgnored(version string) bool {
+	if o.allVersionUpdatesIgnored() {
+		return true
+	}
+
+	for _, ignoredVersion := range o.IgnoreVersions {
+		c, err := semver.NewConstraint(ignoredVersion)
+		if err != nil {
+			continue
+		}
+
+		v, err := semver.NewVersion(version)
+		if err != nil {
+			continue
+		}
+
+		satisfies := c.Check(v)
+		if satisfies {
+			return true
+		}
+	}
+
+	return false
 }

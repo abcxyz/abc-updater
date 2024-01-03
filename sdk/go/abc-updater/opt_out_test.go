@@ -101,3 +101,184 @@ func TestLoadOptOutSettings(t *testing.T) {
 		})
 	}
 }
+
+func TestAllVersionUpdatesIgnored(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name           string
+		appID          string
+		optOutSettings *optOutSettings
+		want           bool
+	}{
+		{
+			name:  "no_error_no_ignore_all",
+			appID: "sample_app_1",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: false,
+				IgnoreVersions:    nil,
+				errorLoading:      false,
+			},
+			want: false,
+		},
+		{
+			name:  "error_no_ignore_all",
+			appID: "sample_app_1",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: false,
+				IgnoreVersions:    nil,
+				errorLoading:      true,
+			},
+			want: true,
+		},
+		{
+			name:  "no_error_ignore_all",
+			appID: "sample_app_1",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: true,
+				IgnoreVersions:    nil,
+				errorLoading:      false,
+			},
+			want: true,
+		},
+		{
+			name:  "error_and_ignore_all",
+			appID: "sample_app_1",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: true,
+				IgnoreVersions:    nil,
+				errorLoading:      true,
+			},
+			want: true,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tc.optOutSettings.allVersionUpdatesIgnored()
+
+			if want := tc.want; got != want {
+				t.Errorf("incorrect allVersionUpdatesIgnored got=%t, want=%t", got, want)
+			}
+		})
+	}
+}
+
+func TestIsIgnored(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name           string
+		appID          string
+		version        string
+		optOutSettings *optOutSettings
+		want           bool
+	}{
+		{
+			name:    "nothing_ignored",
+			appID:   "sample_app_1",
+			version: "1.0.0",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: false,
+				IgnoreVersions:    nil,
+				errorLoading:      false,
+			},
+			want: false,
+		},
+		{
+			name:    "all_ignored",
+			appID:   "sample_app_1",
+			version: "1.0.0",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: true,
+				IgnoreVersions:    nil,
+				errorLoading:      false,
+			},
+			want: true,
+		},
+		{
+			name:    "version_no_match",
+			appID:   "sample_app_1",
+			version: "1.0.0",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: false,
+				IgnoreVersions:    []string{"1.0.1", "<1.0.0", ">1.0.0"},
+				errorLoading:      false,
+			},
+			want: false,
+		},
+		{
+			name:    "version_exact_match",
+			appID:   "sample_app_1",
+			version: "1.0.0",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: false,
+				IgnoreVersions:    []string{"1.0.0"},
+				errorLoading:      false,
+			},
+			want: true,
+		},
+		{
+			name:    "version_constraint_lt",
+			appID:   "sample_app_1",
+			version: "1.0.0",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: false,
+				IgnoreVersions:    []string{"<1.0.1"},
+				errorLoading:      false,
+			},
+			want: true,
+		},
+		{
+			name:    "version_constraint_gt",
+			appID:   "sample_app_1",
+			version: "1.0.0",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: false,
+				IgnoreVersions:    []string{">0.0.1"},
+				errorLoading:      false,
+			},
+			want: true,
+		},
+		{
+			name:    "version_constraint_lte",
+			appID:   "sample_app_1",
+			version: "1.0.0",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: false,
+				IgnoreVersions:    []string{"<=1.0.0"},
+				errorLoading:      false,
+			},
+			want: true,
+		},
+		{
+			name:    "version_constraint_gte",
+			appID:   "sample_app_1",
+			version: "1.0.0",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: false,
+				IgnoreVersions:    []string{">=1.0.0"},
+				errorLoading:      false,
+			},
+			want: true,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tc.optOutSettings.isIgnored(tc.version)
+
+			if want := tc.want; got != want {
+				t.Errorf("incorrect allVersionUpdatesIgnored got=%t, want=%t", got, want)
+			}
+		})
+	}
+}
