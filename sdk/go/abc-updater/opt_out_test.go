@@ -266,6 +266,17 @@ func TestIsIgnored(t *testing.T) {
 			},
 			want: true,
 		},
+		{
+			name:    "version_prerelease",
+			appID:   "sample_app_1",
+			version: "1.1.0-alpha",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: false,
+				IgnoreVersions:    []string{">1.0.0-alpha"},
+				errorLoading:      false,
+			},
+			want: true,
+		},
 	}
 
 	for _, tc := range cases {
@@ -277,7 +288,7 @@ func TestIsIgnored(t *testing.T) {
 			got := tc.optOutSettings.isIgnored(tc.version)
 
 			if want := tc.want; got != want {
-				t.Errorf("incorrect allVersionUpdatesIgnored got=%t, want=%t", got, want)
+				t.Errorf("incorrect isIgnored got=%t, want=%t", got, want)
 			}
 		})
 	}
