@@ -41,6 +41,9 @@ type CheckVersionParams struct {
 
 	// An optional configLookuper to supply config values. Will default to os environment variables.
 	ConfigLookuper envconfig.Lookuper
+
+	// An optional outOutSettings to override the system settings.
+	OptOutSettings *OptOutSettings
 }
 
 // AppResponse is the response object for an app version request.
@@ -66,6 +69,15 @@ const (
 // CheckAppVersion checks if a newer version of an app is available. Relevant update info will be
 // written to the writer provided if applicable.
 func CheckAppVersion(ctx context.Context, params *CheckVersionParams) {
+	optOutSettings := params.OptOutSettings
+	if optOutSettings == nil {
+		optOutSettings = loadOptOutSettings(ctx, envconfig.OsLookuper(), params.AppID)
+	}
+
+	if optOutSettings.allVersionUpdatesIgnored() {
+		return
+	}
+
 	lookuper := params.ConfigLookuper
 	if lookuper == nil {
 		lookuper = envconfig.OsLookuper()
@@ -113,6 +125,10 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) {
 
 	currentVersion, err := version.NewVersion(result.CurrentVersion)
 	if err != nil {
+		return
+	}
+
+	if optOutSettings.isIgnored(currentVersion) {
 		return
 	}
 
