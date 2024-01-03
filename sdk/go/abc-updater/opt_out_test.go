@@ -212,6 +212,17 @@ func TestIsIgnored(t *testing.T) {
 			want: false,
 		},
 		{
+			name:    "version_match_last",
+			appID:   "sample_app_1",
+			version: "1.0.0",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: false,
+				IgnoreVersions:    []string{"1.0.1", "<1.0.0", ">1.0.0", "1.0.0"},
+				errorLoading:      false,
+			},
+			want: false,
+		},
+		{
 			name:    "version_exact_match",
 			appID:   "sample_app_1",
 			version: "1.0.0",
