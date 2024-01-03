@@ -23,8 +23,8 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/hashicorp/go-version"
 	"github.com/sethvargo/go-envconfig"
-	"golang.org/x/mod/semver"
 )
 
 // CheckVersionParams are the parameters for checking for application updates.
@@ -82,7 +82,8 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) {
 		return
 	}
 
-	if !semver.IsValid(params.Version) {
+	checkVersion, err := version.NewVersion(params.Version)
+	if err != nil {
 		return
 	}
 
@@ -110,9 +111,13 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) {
 		return
 	}
 
-	// semver requires v prefix. Current version data is stored without prefix so prepend v.
-	if semver.Compare(params.Version, "v"+result.CurrentVersion) < 0 {
-		outStr := fmt.Sprintf(outputFormat, result.AppName, params.Version, result.CurrentVersion, result.GitHubURL)
+	currentVersion, err := version.NewVersion(result.CurrentVersion)
+	if err != nil {
+		return
+	}
+
+	if checkVersion.LessThan(currentVersion) {
+		outStr := fmt.Sprintf(outputFormat, result.AppName, checkVersion, currentVersion, result.GitHubURL)
 		if _, err := params.Writer.Write([]byte(outStr)); err != nil {
 			return
 		}
