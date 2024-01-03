@@ -220,7 +220,7 @@ func TestIsIgnored(t *testing.T) {
 				IgnoreVersions:    []string{"1.0.1", "<1.0.0", ">1.0.0", "1.0.0"},
 				errorLoading:      false,
 			},
-			want: false,
+			want: true,
 		},
 		{
 			name:    "version_exact_match",

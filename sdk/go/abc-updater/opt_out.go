@@ -61,19 +61,21 @@ func (o *optOutSettings) isIgnored(checkVersion string) bool {
 		return true
 	}
 
-	if len(o.IgnoreVersions) == 0 {
-		return false
+	for _, ignoredVersion := range o.IgnoreVersions {
+		c, err := version.NewConstraint(ignoredVersion)
+		if err != nil {
+			continue
+		}
+
+		v, err := version.NewVersion(checkVersion)
+		if err != nil {
+			continue
+		}
+
+		if c.Check(v) {
+			return true
+		}
 	}
 
-	ignoredVersions := strings.Join(o.IgnoreVersions, ",")
-	c, err := version.NewConstraint(ignoredVersions)
-	if err != nil {
-		return false
-	}
-
-	v, err := version.NewVersion(checkVersion)
-	if err != nil {
-		return false
-	}
-	return c.Check(v)
+	return false
 }
