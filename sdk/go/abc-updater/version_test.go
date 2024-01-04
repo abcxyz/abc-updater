@@ -24,8 +24,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abcxyz/pkg/testutil"
 	"github.com/sethvargo/go-envconfig"
+
+	"github.com/abcxyz/pkg/testutil"
 )
 
 func TestCheckAppVersion(t *testing.T) {
