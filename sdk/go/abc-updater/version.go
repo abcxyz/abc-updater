@@ -66,6 +66,8 @@ const (
 // CheckAppVersion checks if a newer version of an app is available. Relevant update info will be
 // written to the writer provided if applicable.
 func CheckAppVersion(ctx context.Context, params *CheckVersionParams) {
+	logger := initLogger(ctx)
+
 	lookuper := params.ConfigLookuper
 	if lookuper == nil {
 		lookuper = envconfig.OsLookuper()
@@ -73,16 +75,19 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) {
 
 	var c config
 	if err := envconfig.ProcessWith(ctx, &c, lookuper); err != nil {
+		logger.errorContext(ctx, "failed to process envconfig", "error", err)
 		return
 	}
 
 	// Use ParseRequestURI over Parse because Parse validation is more loose and will accept
 	// things such as relative paths without a host.
 	if _, err := url.ParseRequestURI(c.ServerURL); err != nil {
+		logger.errorContext(ctx, "failed to parse server url", "error", err)
 		return
 	}
 
 	if !semver.IsValid(params.Version) {
+		logger.errorContext(ctx, "version is not valid", "error", params.Version)
 		return
 	}
 
@@ -92,21 +97,25 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf(appDataURLFormat, c.ServerURL, params.AppID), nil)
 	if err != nil {
+		logger.errorContext(ctx, "failed to create request", "error", err)
 		return
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
+		logger.errorContext(ctx, "failed to make request", "error", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		logger.errorContext(ctx, "request did not return 200", "error", resp.Status)
 		return
 	}
 
 	var result AppResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		logger.errorContext(ctx, "failed to decode response", "error", err)
 		return
 	}
 
@@ -114,6 +123,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) {
 	if semver.Compare(params.Version, "v"+result.CurrentVersion) < 0 {
 		outStr := fmt.Sprintf(outputFormat, result.AppName, params.Version, result.CurrentVersion, result.GitHubURL)
 		if _, err := params.Writer.Write([]byte(outStr)); err != nil {
+			logger.errorContext(ctx, "failed to write output", "error", err)
 			return
 		}
 	}
