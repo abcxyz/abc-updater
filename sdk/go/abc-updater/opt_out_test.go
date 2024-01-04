@@ -107,13 +107,11 @@ func TestAllVersionUpdatesIgnored(t *testing.T) {
 
 	cases := []struct {
 		name           string
-		appID          string
 		optOutSettings *optOutSettings
 		want           bool
 	}{
 		{
-			name:  "no_error_no_ignore_all",
-			appID: "sample_app_1",
+			name: "no_error_no_ignore_all",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    nil,
@@ -122,8 +120,7 @@ func TestAllVersionUpdatesIgnored(t *testing.T) {
 			want: false,
 		},
 		{
-			name:  "error_no_ignore_all",
-			appID: "sample_app_1",
+			name: "error_no_ignore_all",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    nil,
@@ -132,8 +129,7 @@ func TestAllVersionUpdatesIgnored(t *testing.T) {
 			want: true,
 		},
 		{
-			name:  "no_error_ignore_all",
-			appID: "sample_app_1",
+			name: "no_error_ignore_all",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: true,
 				IgnoreVersions:    nil,
@@ -142,8 +138,7 @@ func TestAllVersionUpdatesIgnored(t *testing.T) {
 			want: true,
 		},
 		{
-			name:  "error_and_ignore_all",
-			appID: "sample_app_1",
+			name: "error_and_ignore_all",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: true,
 				IgnoreVersions:    nil,
@@ -173,14 +168,12 @@ func TestIsIgnored(t *testing.T) {
 
 	cases := []struct {
 		name           string
-		appID          string
 		version        string
 		optOutSettings *optOutSettings
 		want           bool
 	}{
 		{
 			name:    "nothing_ignored",
-			appID:   "sample_app_1",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
@@ -191,7 +184,6 @@ func TestIsIgnored(t *testing.T) {
 		},
 		{
 			name:    "all_ignored",
-			appID:   "sample_app_1",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: true,
@@ -202,7 +194,6 @@ func TestIsIgnored(t *testing.T) {
 		},
 		{
 			name:    "version_no_match",
-			appID:   "sample_app_1",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
@@ -213,7 +204,6 @@ func TestIsIgnored(t *testing.T) {
 		},
 		{
 			name:    "version_match_last",
-			appID:   "sample_app_1",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
@@ -224,7 +214,6 @@ func TestIsIgnored(t *testing.T) {
 		},
 		{
 			name:    "version_exact_match",
-			appID:   "sample_app_1",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
@@ -235,7 +224,6 @@ func TestIsIgnored(t *testing.T) {
 		},
 		{
 			name:    "version_constraint_lt",
-			appID:   "sample_app_1",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
@@ -246,7 +234,6 @@ func TestIsIgnored(t *testing.T) {
 		},
 		{
 			name:    "version_constraint_gt",
-			appID:   "sample_app_1",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
@@ -257,7 +244,6 @@ func TestIsIgnored(t *testing.T) {
 		},
 		{
 			name:    "version_constraint_lte",
-			appID:   "sample_app_1",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
@@ -268,7 +254,6 @@ func TestIsIgnored(t *testing.T) {
 		},
 		{
 			name:    "version_constraint_gte",
-			appID:   "sample_app_1",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
@@ -279,7 +264,6 @@ func TestIsIgnored(t *testing.T) {
 		},
 		{
 			name:    "version_prerelease",
-			appID:   "sample_app_1",
 			version: "1.1.0-alpha",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
