@@ -16,6 +16,8 @@ package abcupdater
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/hashicorp/go-version"
@@ -25,16 +27,16 @@ import (
 type optOutSettings struct {
 	IgnoreVersions    []string `env:"IGNORE_VERSIONS"`
 	ignoreAllVersions bool
-	loadError         error
 }
 
 // loadOptOutSettings will return an optOutSettings struct populated based on the lookuper provided.
-func loadOptOutSettings(ctx context.Context, lookuper envconfig.Lookuper, appID string) *optOutSettings {
+func loadOptOutSettings(ctx context.Context, lookuper envconfig.Lookuper, appID string) (*optOutSettings, error) {
 	l := envconfig.PrefixLookuper(envVarPrefix(appID), lookuper)
 	var c optOutSettings
 	if err := envconfig.ProcessWith(ctx, &c, l); err != nil {
-		c.loadError = err
-		return &c
+		// if we fail loading envconfig, default to ignore updates
+		c.ignoreAllVersions = true
+		return &c, fmt.Errorf("failed to process envconfig: %w", err)
 	}
 
 	for _, version := range c.IgnoreVersions {
@@ -43,7 +45,7 @@ func loadOptOutSettings(ctx context.Context, lookuper envconfig.Lookuper, appID 
 		}
 	}
 
-	return &c
+	return &c, nil
 }
 
 func envVarPrefix(appID string) string {
@@ -52,30 +54,34 @@ func envVarPrefix(appID string) string {
 
 // allVersionUpdatesIgnored returns true if all versions should be ignored.
 func (o *optOutSettings) allVersionUpdatesIgnored() bool {
-	return o.loadError != nil || o.ignoreAllVersions
+	return o.ignoreAllVersions
 }
 
 // isIgnored returns true if the version specified should be ignored.
-func (o *optOutSettings) isIgnored(checkVersion string) bool {
+func (o *optOutSettings) isIgnored(checkVersion string) (bool, error) {
 	if o.allVersionUpdatesIgnored() {
-		return true
+		return true, nil
 	}
 
+	v, err := version.NewVersion(checkVersion)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse version: %w", err)
+	}
+
+	var cumulativeErr error
 	for _, ignoredVersion := range o.IgnoreVersions {
 		c, err := version.NewConstraint(ignoredVersion)
 		if err != nil {
+			cumulativeErr = errors.Join(cumulativeErr, err)
 			continue
 		}
 
-		v, err := version.NewVersion(checkVersion)
-		if err != nil {
-			continue
-		}
-
+		// Constraint checks without pre-releases will only match versions without pre-release.
+		// https://github.com/hashicorp/go-version/issues/130
 		if c.Check(v) {
-			return true
+			return true, nil
 		}
 	}
 
-	return false
+	return false, cumulativeErr
 }

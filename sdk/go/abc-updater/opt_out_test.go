@@ -16,9 +16,9 @@ package abcupdater
 
 import (
 	"context"
-	"errors"
 	"testing"
 
+	"github.com/abcxyz/pkg/testutil"
 	"github.com/google/go-cmp/cmp"
 	"github.com/sethvargo/go-envconfig"
 )
@@ -39,7 +39,6 @@ func TestLoadOptOutSettings(t *testing.T) {
 			want: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    nil,
-				loadError:         nil,
 			},
 		},
 		{
@@ -51,7 +50,6 @@ func TestLoadOptOutSettings(t *testing.T) {
 			want: &optOutSettings{
 				ignoreAllVersions: true,
 				IgnoreVersions:    []string{"all"},
-				loadError:         nil,
 			},
 		},
 		{
@@ -63,7 +61,6 @@ func TestLoadOptOutSettings(t *testing.T) {
 			want: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    []string{"1.0.0"},
-				loadError:         nil,
 			},
 		},
 		{
@@ -75,7 +72,6 @@ func TestLoadOptOutSettings(t *testing.T) {
 			want: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    []string{"<1.0.0", "2.0.0", "3.0.0"},
-				loadError:         nil,
 			},
 		},
 	}
@@ -86,7 +82,7 @@ func TestLoadOptOutSettings(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			config := loadOptOutSettings(context.Background(), envconfig.MapLookuper(tc.lookuperMap), tc.appID)
+			config, _ := loadOptOutSettings(context.Background(), envconfig.MapLookuper(tc.lookuperMap), tc.appID)
 
 			if diff := cmp.Diff(tc.want.IgnoreVersions, config.IgnoreVersions); diff != "" {
 				t.Errorf("Config unexpected diff (-want,+got):\n%s", diff)
@@ -94,10 +90,6 @@ func TestLoadOptOutSettings(t *testing.T) {
 
 			if got, want := config.ignoreAllVersions, tc.want.ignoreAllVersions; got != want {
 				t.Errorf("incorrect ignoreAllVersions got=%t, want=%t", got, want)
-			}
-
-			if got, want := config.loadError, tc.want.loadError; got != want {
-				t.Errorf("incorrect errorLoading got=%t, want=%t", got, want)
 			}
 		})
 	}
@@ -120,28 +112,10 @@ func TestAllVersionUpdatesIgnored(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "error_no_ignore_all",
-			optOutSettings: &optOutSettings{
-				ignoreAllVersions: false,
-				IgnoreVersions:    nil,
-				loadError:         errors.New("error"),
-			},
-			want: true,
-		},
-		{
 			name: "no_error_ignore_all",
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: true,
 				IgnoreVersions:    nil,
-			},
-			want: true,
-		},
-		{
-			name: "error_and_ignore_all",
-			optOutSettings: &optOutSettings{
-				ignoreAllVersions: true,
-				IgnoreVersions:    nil,
-				loadError:         errors.New("error"),
 			},
 			want: true,
 		},
@@ -170,6 +144,7 @@ func TestIsIgnored(t *testing.T) {
 		version        string
 		optOutSettings *optOutSettings
 		want           bool
+		wantErr        string
 	}{
 		{
 			name:    "nothing_ignored",
@@ -261,6 +236,26 @@ func TestIsIgnored(t *testing.T) {
 			},
 			want: true,
 		},
+		{
+			name:    "version_broken",
+			version: "abcd",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: false,
+				IgnoreVersions:    []string{"1.1.0-alpha"},
+			},
+			want:    false,
+			wantErr: "failed to parse version",
+		},
+		{
+			name:    "constraint_broken",
+			version: "1.0.0",
+			optOutSettings: &optOutSettings{
+				ignoreAllVersions: false,
+				IgnoreVersions:    []string{"alsdkfas"},
+			},
+			want:    false,
+			wantErr: "Malformed constraint",
+		},
 	}
 
 	for _, tc := range cases {
@@ -269,7 +264,11 @@ func TestIsIgnored(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := tc.optOutSettings.isIgnored(tc.version)
+			got, err := tc.optOutSettings.isIgnored(tc.version)
+
+			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
+				t.Error(diff)
+			}
 
 			if want := tc.want; got != want {
 				t.Errorf("incorrect isIgnored got=%t, want=%t", got, want)
