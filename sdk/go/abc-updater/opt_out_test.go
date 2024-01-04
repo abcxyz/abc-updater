@@ -16,6 +16,7 @@ package abcupdater
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -38,7 +39,7 @@ func TestLoadOptOutSettings(t *testing.T) {
 			want: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    nil,
-				errorLoading:      false,
+				loadError:         nil,
 			},
 		},
 		{
@@ -50,7 +51,7 @@ func TestLoadOptOutSettings(t *testing.T) {
 			want: &optOutSettings{
 				ignoreAllVersions: true,
 				IgnoreVersions:    []string{"all"},
-				errorLoading:      false,
+				loadError:         nil,
 			},
 		},
 		{
@@ -62,7 +63,7 @@ func TestLoadOptOutSettings(t *testing.T) {
 			want: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    []string{"1.0.0"},
-				errorLoading:      false,
+				loadError:         nil,
 			},
 		},
 		{
@@ -74,7 +75,7 @@ func TestLoadOptOutSettings(t *testing.T) {
 			want: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    []string{"<1.0.0", "2.0.0", "3.0.0"},
-				errorLoading:      false,
+				loadError:         nil,
 			},
 		},
 	}
@@ -95,7 +96,7 @@ func TestLoadOptOutSettings(t *testing.T) {
 				t.Errorf("incorrect ignoreAllVersions got=%t, want=%t", got, want)
 			}
 
-			if got, want := config.errorLoading, tc.want.errorLoading; got != want {
+			if got, want := config.loadError, tc.want.loadError; got != want {
 				t.Errorf("incorrect errorLoading got=%t, want=%t", got, want)
 			}
 		})
@@ -115,7 +116,6 @@ func TestAllVersionUpdatesIgnored(t *testing.T) {
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    nil,
-				errorLoading:      false,
 			},
 			want: false,
 		},
@@ -124,7 +124,7 @@ func TestAllVersionUpdatesIgnored(t *testing.T) {
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    nil,
-				errorLoading:      true,
+				loadError:         errors.New("error"),
 			},
 			want: true,
 		},
@@ -133,7 +133,6 @@ func TestAllVersionUpdatesIgnored(t *testing.T) {
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: true,
 				IgnoreVersions:    nil,
-				errorLoading:      false,
 			},
 			want: true,
 		},
@@ -142,7 +141,7 @@ func TestAllVersionUpdatesIgnored(t *testing.T) {
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: true,
 				IgnoreVersions:    nil,
-				errorLoading:      true,
+				loadError:         errors.New("error"),
 			},
 			want: true,
 		},
@@ -178,7 +177,6 @@ func TestIsIgnored(t *testing.T) {
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    nil,
-				errorLoading:      false,
 			},
 			want: false,
 		},
@@ -188,7 +186,6 @@ func TestIsIgnored(t *testing.T) {
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: true,
 				IgnoreVersions:    nil,
-				errorLoading:      false,
 			},
 			want: true,
 		},
@@ -198,7 +195,6 @@ func TestIsIgnored(t *testing.T) {
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    []string{"1.0.1", "<1.0.0", ">1.0.0"},
-				errorLoading:      false,
 			},
 			want: false,
 		},
@@ -208,7 +204,6 @@ func TestIsIgnored(t *testing.T) {
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    []string{"1.0.1", "<1.0.0", ">1.0.0", "1.0.0"},
-				errorLoading:      false,
 			},
 			want: true,
 		},
@@ -218,7 +213,6 @@ func TestIsIgnored(t *testing.T) {
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    []string{"1.0.0"},
-				errorLoading:      false,
 			},
 			want: true,
 		},
@@ -228,7 +222,6 @@ func TestIsIgnored(t *testing.T) {
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    []string{"<1.0.1"},
-				errorLoading:      false,
 			},
 			want: true,
 		},
@@ -238,7 +231,6 @@ func TestIsIgnored(t *testing.T) {
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    []string{">0.0.1"},
-				errorLoading:      false,
 			},
 			want: true,
 		},
@@ -248,7 +240,6 @@ func TestIsIgnored(t *testing.T) {
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    []string{"<=1.0.0"},
-				errorLoading:      false,
 			},
 			want: true,
 		},
@@ -258,7 +249,6 @@ func TestIsIgnored(t *testing.T) {
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    []string{">=1.0.0"},
-				errorLoading:      false,
 			},
 			want: true,
 		},
@@ -268,7 +258,6 @@ func TestIsIgnored(t *testing.T) {
 			optOutSettings: &optOutSettings{
 				ignoreAllVersions: false,
 				IgnoreVersions:    []string{"1.1.0-alpha"},
-				errorLoading:      false,
 			},
 			want: true,
 		},

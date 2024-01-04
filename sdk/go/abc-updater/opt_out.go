@@ -25,7 +25,7 @@ import (
 type optOutSettings struct {
 	IgnoreVersions    []string `env:"IGNORE_VERSIONS"`
 	ignoreAllVersions bool
-	errorLoading      bool
+	loadError         error
 }
 
 // loadOptOutSettings will return an optOutSettings struct populated based on the lookuper provided.
@@ -33,7 +33,7 @@ func loadOptOutSettings(ctx context.Context, lookuper envconfig.Lookuper, appID 
 	l := envconfig.PrefixLookuper(envVarPrefix(appID), lookuper)
 	var c optOutSettings
 	if err := envconfig.ProcessWith(ctx, &c, l); err != nil {
-		c.errorLoading = true
+		c.loadError = err
 		return &c
 	}
 
@@ -52,7 +52,7 @@ func envVarPrefix(appID string) string {
 
 // allVersionUpdatesIgnored returns true if all versions should be ignored.
 func (o *optOutSettings) allVersionUpdatesIgnored() bool {
-	return o.errorLoading || o.ignoreAllVersions
+	return o.loadError != nil || o.ignoreAllVersions
 }
 
 // isIgnored returns true if the version specified should be ignored.
