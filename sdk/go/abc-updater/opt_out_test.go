@@ -77,6 +77,18 @@ func TestLoadOptOutSettings(t *testing.T) {
 				errorLoading:      false,
 			},
 		},
+		{
+			name:  "invalid_app_id",
+			appID: "sample app 1",
+			lookuperMap: map[string]string{
+				"SAMPLE_APP_1_IGNORE_VERSIONS": "<1.0.0,2.0.0,3.0.0",
+			},
+			want: &optOutSettings{
+				ignoreAllVersions: false,
+				IgnoreVersions:    nil,
+				errorLoading:      false,
+			},
+		},
 	}
 
 	for _, tc := range cases {
