@@ -74,7 +74,7 @@ func TestCheckAppVersion(t *testing.T) {
 			version: "v0.0.1",
 			want: fmt.Sprintf(outputFormat,
 				"Sample App 1",
-				"v0.0.1",
+				"0.0.1",
 				"1.0.0",
 				"https://github.com/abcxyz/sample_app_1"),
 		},
@@ -94,9 +94,9 @@ func TestCheckAppVersion(t *testing.T) {
 		{
 			name:    "invalid_version",
 			appID:   "sample_app_1",
-			version: "1.0.0.12.2",
+			version: "vab1.0.0.12.2",
 			want:    "",
-			wantErr: "version to check is invalid: 1.0.0.12.2",
+			wantErr: "failed to parse check version \"vab1.0.0.12.2\"",
 		},
 	}
 

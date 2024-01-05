@@ -23,8 +23,8 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/hashicorp/go-version"
 	"github.com/sethvargo/go-envconfig"
-	"golang.org/x/mod/semver"
 )
 
 // CheckVersionParams are the parameters for checking for application updates.
@@ -82,8 +82,9 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 		return fmt.Errorf("failed to parse server url: %w", err)
 	}
 
-	if !semver.IsValid(params.Version) {
-		return fmt.Errorf("version to check is invalid: %s", params.Version)
+	checkVersion, err := version.NewVersion(params.Version)
+	if err != nil {
+		return fmt.Errorf("failed to parse check version %q: %w", params.Version, err)
 	}
 
 	client := &http.Client{
@@ -115,9 +116,13 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 		return fmt.Errorf("failed to decode response body: %w", err)
 	}
 
-	// semver requires v prefix. Current version data is stored without prefix so prepend v.
-	if semver.Compare(params.Version, "v"+result.CurrentVersion) < 0 {
-		outStr := fmt.Sprintf(outputFormat, result.AppName, params.Version, result.CurrentVersion, result.GitHubURL)
+	currentVersion, err := version.NewVersion(result.CurrentVersion)
+	if err != nil {
+		return fmt.Errorf("failed to parse current version %q: %w", params.Version, err)
+	}
+
+	if checkVersion.LessThan(currentVersion) {
+		outStr := fmt.Sprintf(outputFormat, result.AppName, checkVersion, currentVersion, result.GitHubURL)
 		if _, err := params.Writer.Write([]byte(outStr)); err != nil {
 			return fmt.Errorf("failed to write output: %w", err)
 		}
