@@ -65,7 +65,7 @@ const (
 
 // CheckAppVersion checks if a newer version of an app is available. Relevant update info will be
 // written to the writer provided if applicable.
-func CheckAppVersion(ctx context.Context, params *CheckVersionParams) {
+func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 	lookuper := params.ConfigLookuper
 	if lookuper == nil {
 		lookuper = envconfig.OsLookuper()
@@ -73,17 +73,17 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) {
 
 	var c config
 	if err := envconfig.ProcessWith(ctx, &c, lookuper); err != nil {
-		return
+		return fmt.Errorf("failed to process envconfig: %w", err)
 	}
 
 	// Use ParseRequestURI over Parse because Parse validation is more loose and will accept
 	// things such as relative paths without a host.
 	if _, err := url.ParseRequestURI(c.ServerURL); err != nil {
-		return
+		return fmt.Errorf("failed to parse server url: %w", err)
 	}
 
 	if !semver.IsValid(params.Version) {
-		return
+		return fmt.Errorf("version to check is invalid: %s", params.Version)
 	}
 
 	client := &http.Client{
@@ -92,29 +92,36 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf(appDataURLFormat, c.ServerURL, params.AppID), nil)
 	if err != nil {
-		return
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return
+		return fmt.Errorf("failed to make request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return
+		b, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorResponseBytes))
+		if err != nil {
+			return fmt.Errorf("unable to read response body")
+		}
+
+		return fmt.Errorf("not a 200 response: %s", string(b))
 	}
 
 	var result AppResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return
+		return fmt.Errorf("failed to decode response body: %w", err)
 	}
 
 	// semver requires v prefix. Current version data is stored without prefix so prepend v.
 	if semver.Compare(params.Version, "v"+result.CurrentVersion) < 0 {
 		outStr := fmt.Sprintf(outputFormat, result.AppName, params.Version, result.CurrentVersion, result.GitHubURL)
 		if _, err := params.Writer.Write([]byte(outStr)); err != nil {
-			return
+			return fmt.Errorf("failed to write output: %w", err)
 		}
 	}
+
+	return nil
 }
