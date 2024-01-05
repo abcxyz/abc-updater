@@ -125,3 +125,100 @@ func TestCheckAppVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckAppVersion_OptOut(t *testing.T) {
+	t.Parallel()
+
+	sampleAppResponse, err := json.Marshal(AppResponse{
+		AppID:          "sample_app_1",
+		AppName:        "Sample App 1",
+		GitHubURL:      "https://github.com/abcxyz/sample_app_1",
+		CurrentVersion: "1.0.0",
+	})
+	if err != nil {
+		t.Errorf("failed to encode json %v", err)
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.RequestURI, "sample_app_1/data.json") {
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, string(sampleAppResponse))
+	}))
+
+	lookuper := envconfig.MapLookuper(map[string]string{
+		"ABC_UPDATER_URL": ts.URL,
+	})
+
+	t.Cleanup(func() {
+		ts.Close()
+	})
+
+	cases := []struct {
+		name           string
+		appID          string
+		version        string
+		optOutSettings *OptOutSettings
+		want           string
+		wantErr        string
+	}{
+		{
+			name:    "ignore_all",
+			appID:   "sample_app_1",
+			version: "v1.0.0",
+			optOutSettings: &OptOutSettings{
+				ignoreAllVersions: true,
+			},
+			want: "",
+		},
+		{
+			name:    "ignore_match",
+			appID:   "sample_app_1",
+			version: "v1.0.0",
+			optOutSettings: &OptOutSettings{
+				IgnoreVersions: []string{"1.0.0"},
+			},
+			want: "",
+		},
+		{
+			name:           "success_no_ignore_match",
+			appID:          "sample_app_1",
+			version:        "v0.0.1",
+			optOutSettings: &OptOutSettings{},
+			want: fmt.Sprintf(outputFormat,
+				"Sample App 1",
+				"0.0.1",
+				"1.0.0",
+				"https://github.com/abcxyz/sample_app_1"),
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var b bytes.Buffer
+			params := &CheckVersionParams{
+				AppID:    tc.appID,
+				Version:  tc.version,
+				Writer:   &b,
+				Lookuper: lookuper,
+			}
+
+			err := CheckAppVersion(context.Background(), params)
+			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
+				t.Error(diff)
+			}
+
+			if got, want := b.String(), tc.want; got != want {
+				t.Errorf("incorrect output got=%s, want=%s", got, want)
+			}
+		})
+	}
+}
