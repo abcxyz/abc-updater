@@ -96,7 +96,7 @@ func TestCheckAppVersion(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "vab1.0.0.12.2",
 			want:    "",
-			wantErr: "version to check is invalid: Malformed version",
+			wantErr: "failed to parse check version \"vab1.0.0.12.2\"",
 		},
 	}
 

@@ -84,7 +84,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 
 	checkVersion, err := version.NewVersion(params.Version)
 	if err != nil {
-		return fmt.Errorf("version to check is invalid: %w", err)
+		return fmt.Errorf("failed to parse check version %q: %w", params.Version, err)
 	}
 
 	client := &http.Client{
@@ -118,7 +118,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 
 	currentVersion, err := version.NewVersion(result.CurrentVersion)
 	if err != nil {
-		return fmt.Errorf("current version is invalid: %w", err)
+		return fmt.Errorf("failed to parse current version %q: %w", params.Version, err)
 	}
 
 	if checkVersion.LessThan(currentVersion) {
