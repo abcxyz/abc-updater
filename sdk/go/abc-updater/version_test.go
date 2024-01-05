@@ -108,10 +108,10 @@ func TestCheckAppVersion(t *testing.T) {
 
 			var b bytes.Buffer
 			params := &CheckVersionParams{
-				AppID:          tc.appID,
-				Version:        tc.version,
-				Writer:         &b,
-				ConfigLookuper: lookuper,
+				AppID:    tc.appID,
+				Version:  tc.version,
+				Writer:   &b,
+				Lookuper: lookuper,
 			}
 
 			err := CheckAppVersion(context.Background(), params)

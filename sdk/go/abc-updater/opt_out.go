@@ -24,15 +24,15 @@ import (
 	"github.com/sethvargo/go-envconfig"
 )
 
-type optOutSettings struct {
+type OptOutSettings struct {
 	IgnoreVersions    []string `env:"IGNORE_VERSIONS"`
 	ignoreAllVersions bool
 }
 
 // loadOptOutSettings will return an optOutSettings struct populated based on the lookuper provided.
-func loadOptOutSettings(ctx context.Context, lookuper envconfig.Lookuper, appID string) (*optOutSettings, error) {
+func loadOptOutSettings(ctx context.Context, lookuper envconfig.Lookuper, appID string) (*OptOutSettings, error) {
 	l := envconfig.PrefixLookuper(envVarPrefix(appID), lookuper)
-	var c optOutSettings
+	var c OptOutSettings
 	if err := envconfig.ProcessWith(ctx, &c, l); err != nil {
 		// if we fail loading envconfig, default to ignore updates
 		c.ignoreAllVersions = true
@@ -53,12 +53,12 @@ func envVarPrefix(appID string) string {
 }
 
 // allVersionUpdatesIgnored returns true if all versions should be ignored.
-func (o *optOutSettings) allVersionUpdatesIgnored() bool {
+func (o *OptOutSettings) allVersionUpdatesIgnored() bool {
 	return o.ignoreAllVersions
 }
 
 // isIgnored returns true if the version specified should be ignored.
-func (o *optOutSettings) isIgnored(checkVersion string) (bool, error) {
+func (o *OptOutSettings) isIgnored(checkVersion string) (bool, error) {
 	if o.allVersionUpdatesIgnored() {
 		return true, nil
 	}

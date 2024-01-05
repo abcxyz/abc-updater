@@ -39,8 +39,11 @@ type CheckVersionParams struct {
 	// The writer where the update info will be written to.
 	Writer io.Writer
 
-	// An optional configLookuper to supply config values. Will default to os environment variables.
-	ConfigLookuper envconfig.Lookuper
+	// An optional Lookuper to load envconfig structs. Will default to os environment variables.
+	Lookuper envconfig.Lookuper
+
+	// An optional outOutSettings to override the system settings.
+	OptOutSettings *OptOutSettings
 }
 
 // AppResponse is the response object for an app version request.
@@ -66,9 +69,22 @@ const (
 // CheckAppVersion checks if a newer version of an app is available. Relevant update info will be
 // written to the writer provided if applicable.
 func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
-	lookuper := params.ConfigLookuper
+	lookuper := params.Lookuper
 	if lookuper == nil {
 		lookuper = envconfig.OsLookuper()
+	}
+
+	optOutSettings := params.OptOutSettings
+	if optOutSettings == nil {
+		loadedSettings, err := loadOptOutSettings(ctx, lookuper, params.AppID)
+		if err != nil {
+			return fmt.Errorf("failed to load opt out settings: %w", err)
+		}
+		optOutSettings = loadedSettings
+	}
+
+	if optOutSettings.allVersionUpdatesIgnored() {
+		return nil
 	}
 
 	var c config
@@ -114,6 +130,10 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 	var result AppResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return fmt.Errorf("failed to decode response body: %w", err)
+	}
+
+	if ignore, err := optOutSettings.isIgnored(result.CurrentVersion); ignore || err != nil {
+		return err
 	}
 
 	currentVersion, err := version.NewVersion(result.CurrentVersion)
