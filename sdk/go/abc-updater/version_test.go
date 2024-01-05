@@ -25,6 +25,8 @@ import (
 	"testing"
 
 	"github.com/sethvargo/go-envconfig"
+
+	"github.com/abcxyz/pkg/testutil"
 )
 
 func TestCheckAppVersion(t *testing.T) {
@@ -64,6 +66,7 @@ func TestCheckAppVersion(t *testing.T) {
 		appID   string
 		version string
 		want    string
+		wantErr string
 	}{
 		{
 			name:    "outdated_version",
@@ -86,12 +89,14 @@ func TestCheckAppVersion(t *testing.T) {
 			appID:   "bad_app",
 			version: "v1.0.0",
 			want:    "",
+			wantErr: http.StatusText(http.StatusNotFound),
 		},
 		{
 			name:    "invalid_version",
 			appID:   "sample_app_1",
 			version: "1.0.0.12.2",
 			want:    "",
+			wantErr: "version to check is invalid: 1.0.0.12.2",
 		},
 	}
 
@@ -109,7 +114,10 @@ func TestCheckAppVersion(t *testing.T) {
 				ConfigLookuper: lookuper,
 			}
 
-			CheckAppVersion(context.Background(), params)
+			err := CheckAppVersion(context.Background(), params)
+			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
+				t.Error(diff)
+			}
 
 			if got, want := b.String(), tc.want; got != want {
 				t.Errorf("incorrect output got=%s, want=%s", got, want)
