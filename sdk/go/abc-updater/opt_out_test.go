@@ -32,6 +32,7 @@ func TestLoadOptOutSettings(t *testing.T) {
 		appID       string
 		lookuperMap map[string]string
 		want        *optOutSettings
+		wantErr     string
 	}{
 		{
 			name:        "no_env_vars_set",
@@ -94,7 +95,10 @@ func TestLoadOptOutSettings(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			config, _ := loadOptOutSettings(context.Background(), envconfig.MapLookuper(tc.lookuperMap), tc.appID)
+			config, err := loadOptOutSettings(context.Background(), envconfig.MapLookuper(tc.lookuperMap), tc.appID)
+			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
+				t.Error(diff)
+			}
 
 			if diff := cmp.Diff(tc.want.IgnoreVersions, config.IgnoreVersions); diff != "" {
 				t.Errorf("Config unexpected diff (-want,+got):\n%s", diff)
