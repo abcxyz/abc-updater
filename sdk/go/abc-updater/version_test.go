@@ -53,26 +53,25 @@ func TestCheckAppVersion(t *testing.T) {
 		fmt.Fprintln(w, string(sampleAppResponse))
 	}))
 
-	lookuper := envconfig.MapLookuper(map[string]string{
-		"ABC_UPDATER_URL": ts.URL,
-	})
-
 	t.Cleanup(func() {
 		ts.Close()
 	})
 
 	cases := []struct {
-		name           string
-		appID          string
-		version        string
-		optOutSettings *optOutSettings
-		want           string
-		wantErr        string
+		name               string
+		appID              string
+		version            string
+		envconfigLookupMap map[string]string
+		want               string
+		wantErr            string
 	}{
 		{
 			name:    "outdated_version",
 			appID:   "sample_app_1",
 			version: "v0.0.1",
+			envconfigLookupMap: map[string]string{
+				"ABC_UPDATER_URL": ts.URL,
+			},
 			want: fmt.Sprintf(outputFormat,
 				"Sample App 1",
 				"0.0.1",
@@ -83,12 +82,18 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "current_version",
 			appID:   "sample_app_1",
 			version: "v1.0.0",
-			want:    "",
+			envconfigLookupMap: map[string]string{
+				"ABC_UPDATER_URL": ts.URL,
+			},
+			want: "",
 		},
 		{
 			name:    "invalid_app_id",
 			appID:   "bad_app",
 			version: "v1.0.0",
+			envconfigLookupMap: map[string]string{
+				"ABC_UPDATER_URL": ts.URL,
+			},
 			want:    "",
 			wantErr: http.StatusText(http.StatusNotFound),
 		},
@@ -96,6 +101,9 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "invalid_version",
 			appID:   "sample_app_1",
 			version: "vab1.0.0.12.2",
+			envconfigLookupMap: map[string]string{
+				"ABC_UPDATER_URL": ts.URL,
+			},
 			want:    "",
 			wantErr: "failed to parse check version \"vab1.0.0.12.2\"",
 		},
@@ -103,8 +111,9 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "opt_out_ignore_all",
 			appID:   "sample_app_1",
 			version: "v0.1.0",
-			optOutSettings: &optOutSettings{
-				ignoreAllVersions: true,
+			envconfigLookupMap: map[string]string{
+				"ABC_UPDATER_URL":                    ts.URL,
+				ignoreVersionsEnvVar("sample_app_1"): "all",
 			},
 			want: "",
 		},
@@ -112,8 +121,9 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "opt_out_ignore_match",
 			appID:   "sample_app_1",
 			version: "v0.1.0",
-			optOutSettings: &optOutSettings{
-				IgnoreVersions: []string{"1.0.0"},
+			envconfigLookupMap: map[string]string{
+				"ABC_UPDATER_URL":                    ts.URL,
+				ignoreVersionsEnvVar("sample_app_1"): "1.0.0",
 			},
 			want: "",
 		},
@@ -121,8 +131,9 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "opt_out_no_match_not_ignored",
 			appID:   "sample_app_1",
 			version: "v0.0.1",
-			optOutSettings: &optOutSettings{
-				IgnoreVersions: []string{"0.0.2"},
+			envconfigLookupMap: map[string]string{
+				"ABC_UPDATER_URL":                    ts.URL,
+				ignoreVersionsEnvVar("sample_app_1"): "0.0.2",
 			},
 			want: fmt.Sprintf(outputFormat,
 				"Sample App 1",
@@ -140,11 +151,10 @@ func TestCheckAppVersion(t *testing.T) {
 
 			var b bytes.Buffer
 			params := &CheckVersionParams{
-				AppID:              tc.appID,
-				Version:            tc.version,
-				Writer:             &b,
-				Lookuper:           lookuper,
-				testOptOutSettings: tc.optOutSettings,
+				AppID:    tc.appID,
+				Version:  tc.version,
+				Writer:   &b,
+				Lookuper: envconfig.MapLookuper(tc.envconfigLookupMap),
 			}
 
 			err := CheckAppVersion(context.Background(), params)
