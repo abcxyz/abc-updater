@@ -42,8 +42,8 @@ type CheckVersionParams struct {
 	// An optional Lookuper to load envconfig structs. Will default to os environment variables.
 	Lookuper envconfig.Lookuper
 
-	// An optional outOutSettings to override the system settings.
-	OptOutSettings *OptOutSettings
+	// testOptOutSettings is used for tests to inject the opt-out settings.
+	testOptOutSettings *optOutSettings
 }
 
 // AppResponse is the response object for an app version request.
@@ -74,7 +74,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 		lookuper = envconfig.OsLookuper()
 	}
 
-	optOutSettings := params.OptOutSettings
+	optOutSettings := params.testOptOutSettings
 	if optOutSettings == nil {
 		loadedSettings, err := loadOptOutSettings(ctx, lookuper, params.AppID)
 		if err != nil {

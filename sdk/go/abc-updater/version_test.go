@@ -65,7 +65,7 @@ func TestCheckAppVersion(t *testing.T) {
 		name           string
 		appID          string
 		version        string
-		optOutSettings *OptOutSettings
+		optOutSettings *optOutSettings
 		want           string
 		wantErr        string
 	}{
@@ -103,7 +103,7 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "opt_out_ignore_all",
 			appID:   "sample_app_1",
 			version: "v0.1.0",
-			optOutSettings: &OptOutSettings{
+			optOutSettings: &optOutSettings{
 				ignoreAllVersions: true,
 			},
 			want: "",
@@ -112,7 +112,7 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "opt_out_ignore_match",
 			appID:   "sample_app_1",
 			version: "v0.1.0",
-			optOutSettings: &OptOutSettings{
+			optOutSettings: &optOutSettings{
 				IgnoreVersions: []string{"1.0.0"},
 			},
 			want: "",
@@ -121,7 +121,7 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "opt_out_no_match_not_ignored",
 			appID:   "sample_app_1",
 			version: "v0.0.1",
-			optOutSettings: &OptOutSettings{
+			optOutSettings: &optOutSettings{
 				IgnoreVersions: []string{"0.0.2"},
 			},
 			want: fmt.Sprintf(outputFormat,
@@ -140,11 +140,11 @@ func TestCheckAppVersion(t *testing.T) {
 
 			var b bytes.Buffer
 			params := &CheckVersionParams{
-				AppID:          tc.appID,
-				Version:        tc.version,
-				Writer:         &b,
-				Lookuper:       lookuper,
-				OptOutSettings: tc.optOutSettings,
+				AppID:              tc.appID,
+				Version:            tc.version,
+				Writer:             &b,
+				Lookuper:           lookuper,
+				testOptOutSettings: tc.optOutSettings,
 			}
 
 			err := CheckAppVersion(context.Background(), params)
