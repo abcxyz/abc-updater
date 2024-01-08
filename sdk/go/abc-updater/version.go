@@ -132,8 +132,12 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 		return fmt.Errorf("failed to decode response body: %w", err)
 	}
 
-	if ignore, err := optOutSettings.isIgnored(result.CurrentVersion); ignore || err != nil {
+	ignore, err := optOutSettings.isIgnored(result.CurrentVersion)
+	if err != nil {
 		return err
+	}
+	if ignore {
+		return nil
 	}
 
 	currentVersion, err := version.NewVersion(result.CurrentVersion)
