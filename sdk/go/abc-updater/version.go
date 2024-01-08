@@ -146,16 +146,18 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 	}
 
 	if checkVersion.LessThan(currentVersion) {
-		outStr := versionUpdateOutputText(result.AppName, result.AppID, result.GitHubURL, checkVersion.String(), currentVersion.String())
+		outStr := fmt.Sprintf(outputFormat,
+			result.AppName,
+			checkVersion,
+			currentVersion,
+			result.GitHubURL,
+			ignoreVersionsEnvVar(result.AppID),
+			currentVersion,
+			ignoreVersionsEnvVar(result.AppID))
 		if _, err := params.Writer.Write([]byte(outStr)); err != nil {
 			return fmt.Errorf("failed to write output: %w", err)
 		}
 	}
 
 	return nil
-}
-
-func versionUpdateOutputText(appName, appID, githubURL, checkVersion, currentVersion string) string {
-	ignoreVersionsEnvVar := ignoreVersionsEnvVar(appID)
-	return fmt.Sprintf(outputFormat, appName, checkVersion, currentVersion, githubURL, ignoreVersionsEnvVar, currentVersion, ignoreVersionsEnvVar)
 }

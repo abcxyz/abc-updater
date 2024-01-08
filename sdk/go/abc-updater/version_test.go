@@ -73,7 +73,14 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "outdated_version",
 			appID:   "sample_app_1",
 			version: "v0.0.1",
-			want:    versionUpdateOutputText("Sample App 1", "sample_app_1", "https://github.com/abcxyz/sample_app_1", "0.0.1", "1.0.0"),
+			want: fmt.Sprintf(outputFormat,
+				"Sample App 1",
+				"0.0.1",
+				"1.0.0",
+				"https://github.com/abcxyz/sample_app_1",
+				ignoreVersionsEnvVar("sample_app_1"),
+				"1.0.0",
+				ignoreVersionsEnvVar("sample_app_1")),
 		},
 		{
 			name:    "current_version",
@@ -120,7 +127,14 @@ func TestCheckAppVersion(t *testing.T) {
 			optOutSettings: &OptOutSettings{
 				IgnoreVersions: []string{"0.0.2"},
 			},
-			want: versionUpdateOutputText("Sample App 1", "sample_app_1", "https://github.com/abcxyz/sample_app_1", "0.0.1", "1.0.0"),
+			want: fmt.Sprintf(outputFormat,
+				"Sample App 1",
+				"0.0.1",
+				"1.0.0",
+				"https://github.com/abcxyz/sample_app_1",
+				ignoreVersionsEnvVar("sample_app_1"),
+				"1.0.0",
+				ignoreVersionsEnvVar("sample_app_1")),
 		},
 	}
 
