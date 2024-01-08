@@ -52,6 +52,10 @@ func envVarPrefix(appID string) string {
 	return strings.ToUpper(appID) + "_"
 }
 
+func ignoreVersionsEnvVar(appID string) string {
+	return envVarPrefix(appID) + "IGNORE_VERSIONS"
+}
+
 // allVersionUpdatesIgnored returns true if all versions should be ignored.
 func (o *OptOutSettings) allVersionUpdatesIgnored() bool {
 	return o.ignoreAllVersions

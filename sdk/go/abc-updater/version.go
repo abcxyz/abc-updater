@@ -61,8 +61,12 @@ type config struct {
 }
 
 const (
-	appDataURLFormat      = "%s/%s/data.json"
-	outputFormat          = "A new version of %s is available! Your current version is %s. Version %s is available at %s.\n"
+	appDataURLFormat = "%s/%s/data.json"
+	outputFormat     = "" +
+		"A new version of %s is available! Your current version is %s. Version %s is available at %s.\n" +
+		"\n" +
+		"To disable notifications for this new version, set %s=%q." +
+		" To disable all version notifications, set %s=\"all\".\n"
 	maxErrorResponseBytes = 2048
 )
 
@@ -142,11 +146,16 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 	}
 
 	if checkVersion.LessThan(currentVersion) {
-		outStr := fmt.Sprintf(outputFormat, result.AppName, checkVersion, currentVersion, result.GitHubURL)
+		outStr := versionUpdateOutputText(result.AppName, result.AppID, result.GitHubURL, checkVersion.String(), currentVersion.String())
 		if _, err := params.Writer.Write([]byte(outStr)); err != nil {
 			return fmt.Errorf("failed to write output: %w", err)
 		}
 	}
 
 	return nil
+}
+
+func versionUpdateOutputText(appName, appID, githubURL, checkVersion, currentVersion string) string {
+	ignoreVersionsEnvVar := ignoreVersionsEnvVar(appID)
+	return fmt.Sprintf(outputFormat, appName, checkVersion, currentVersion, githubURL, ignoreVersionsEnvVar, currentVersion, ignoreVersionsEnvVar)
 }
