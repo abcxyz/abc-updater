@@ -32,7 +32,7 @@ type localStoreSettings struct {
 	// directory can be supplied to override the default localStore directory.
 	Directory string
 
-	// testLocalStoreDirFn is used to override the default function for getting localStore dir.
+	// testLocalStoreDirFn is used to override the default function for getting localStore dir in tests.
 	testLocalStoreDirFn func(string) (string, error)
 }
 
