@@ -90,7 +90,6 @@ func (l *localStore) loadLocalData() (*localData, error) {
 	}
 
 	return &data, nil
-
 }
 
 func (l *localStore) updateLocalData(localData *localData) error {
