@@ -58,18 +58,18 @@ func TestCheckAppVersion(t *testing.T) {
 	})
 
 	cases := []struct {
-		name               string
-		appID              string
-		version            string
-		envconfigLookupMap map[string]string
-		want               string
-		wantErr            string
+		name    string
+		appID   string
+		version string
+		env     map[string]string
+		want    string
+		wantErr string
 	}{
 		{
 			name:    "outdated_version",
 			appID:   "sample_app_1",
 			version: "v0.0.1",
-			envconfigLookupMap: map[string]string{
+			env: map[string]string{
 				"ABC_UPDATER_URL": ts.URL,
 			},
 			want: fmt.Sprintf(outputFormat,
@@ -82,7 +82,7 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "current_version",
 			appID:   "sample_app_1",
 			version: "v1.0.0",
-			envconfigLookupMap: map[string]string{
+			env: map[string]string{
 				"ABC_UPDATER_URL": ts.URL,
 			},
 			want: "",
@@ -91,7 +91,7 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "invalid_app_id",
 			appID:   "bad_app",
 			version: "v1.0.0",
-			envconfigLookupMap: map[string]string{
+			env: map[string]string{
 				"ABC_UPDATER_URL": ts.URL,
 			},
 			want:    "",
@@ -101,7 +101,7 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "invalid_version",
 			appID:   "sample_app_1",
 			version: "vab1.0.0.12.2",
-			envconfigLookupMap: map[string]string{
+			env: map[string]string{
 				"ABC_UPDATER_URL": ts.URL,
 			},
 			want:    "",
@@ -111,7 +111,7 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "opt_out_ignore_all",
 			appID:   "sample_app_1",
 			version: "v0.1.0",
-			envconfigLookupMap: map[string]string{
+			env: map[string]string{
 				"ABC_UPDATER_URL":                    ts.URL,
 				ignoreVersionsEnvVar("sample_app_1"): "all",
 			},
@@ -121,7 +121,7 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "opt_out_ignore_match",
 			appID:   "sample_app_1",
 			version: "v0.1.0",
-			envconfigLookupMap: map[string]string{
+			env: map[string]string{
 				"ABC_UPDATER_URL":                    ts.URL,
 				ignoreVersionsEnvVar("sample_app_1"): "1.0.0",
 			},
@@ -131,7 +131,7 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "opt_out_no_match_not_ignored",
 			appID:   "sample_app_1",
 			version: "v0.0.1",
-			envconfigLookupMap: map[string]string{
+			env: map[string]string{
 				"ABC_UPDATER_URL":                    ts.URL,
 				ignoreVersionsEnvVar("sample_app_1"): "0.0.2",
 			},
@@ -154,7 +154,7 @@ func TestCheckAppVersion(t *testing.T) {
 				AppID:    tc.appID,
 				Version:  tc.version,
 				Writer:   &b,
-				Lookuper: envconfig.MapLookuper(tc.envconfigLookupMap),
+				Lookuper: envconfig.MapLookuper(tc.env),
 			}
 
 			err := CheckAppVersion(context.Background(), params)
