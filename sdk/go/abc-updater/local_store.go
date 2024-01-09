@@ -42,6 +42,7 @@ type localStore struct {
 
 const defaultLocalStoreDirFormat = "%s/.config/abcupdater/%s/"
 
+// initLocalStore setups up localStore and creates directories if needed.
 func initLocalStore(settings *localStoreSettings) (*localStore, error) {
 	directory := settings.Directory
 	if directory == "" {
@@ -67,6 +68,7 @@ func initLocalStore(settings *localStoreSettings) (*localStore, error) {
 	return &localStore{directory: directory}, nil
 }
 
+// defaultLocalStoreDir returns the default localStore directory given an appID.
 func defaultLocalStoreDir(appID string) (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -76,6 +78,7 @@ func defaultLocalStoreDir(appID string) (string, error) {
 	return fmt.Sprintf(defaultLocalStoreDirFormat, homeDir, appID), nil
 }
 
+// loadLocalData reads from local store and returns localData.
 func (l *localStore) loadLocalData() (*localData, error) {
 	dataFilename := filepath.Join(l.directory, "data.json")
 	f, err := os.Open(dataFilename)
@@ -92,6 +95,7 @@ func (l *localStore) loadLocalData() (*localData, error) {
 	return &data, nil
 }
 
+// updateLocalData updates the local store with the provided localData.
 func (l *localStore) updateLocalData(localData *localData) error {
 	f, err := os.Create(l.localDataFilename())
 	if err != nil {
@@ -107,6 +111,7 @@ func (l *localStore) updateLocalData(localData *localData) error {
 	return nil
 }
 
+// localDataFilename is the fullpath for the local data file.
 func (l *localStore) localDataFilename() string {
 	return filepath.Join(l.directory, "data.json")
 }
