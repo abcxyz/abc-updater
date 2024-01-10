@@ -55,7 +55,7 @@ func defaultLocalStoreDir(appID string) (string, error) {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
 	}
 
-	return fmt.Sprintf("%s/.config/abcupdater/%s/", homeDir, appID), nil
+	return filepath.Join(homeDir, ".config", "abcupdater", appID), nil
 }
 
 func initLocalStoreWithDir(dir string) (*localStore, error) {
