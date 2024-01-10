@@ -41,9 +41,9 @@ func TestInitWithDir(t *testing.T) {
 			want: &localStore{directory: filepath.Join(tempDir, "hello_1")},
 		},
 		{
-			name:    "empty_dir",
+			name:    "empty_string_dir",
 			dir:     "",
-			wantErr: "must supply non empty directory",
+			wantErr: "directory cannot be empty string",
 		},
 	}
 

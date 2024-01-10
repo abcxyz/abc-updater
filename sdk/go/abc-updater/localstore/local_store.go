@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package localstore is an interface for persistent JSON storage on the users machine. This
+// is internal and only intended to be imported from this repo.
 package localstore
 
 import (
@@ -32,12 +34,11 @@ type localStore struct {
 const dataFilename = "data.json"
 
 // Init sets up localStore with the default config location for the app.
-// This should only be used internally in abc-updater.
 func Init(appID string) (*localStore, error) {
 	if appID == "" {
 		return nil, fmt.Errorf("must supply non empty appID")
 	}
-	dir, err := defaulteDir(appID)
+	dir, err := defaultDir(appID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get default directory: %w", err)
 	}
@@ -45,8 +46,8 @@ func Init(appID string) (*localStore, error) {
 	return InitWithDir(dir)
 }
 
-// defaulteDir returns the default localStore directory given an appID.
-func defaulteDir(appID string) (string, error) {
+// defaultDir returns the default localStore directory given an appID.
+func defaultDir(appID string) (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
@@ -56,10 +57,9 @@ func defaulteDir(appID string) (string, error) {
 }
 
 // InitWithDir sets up localStore with the provided directory.
-// This should only be used internally in abc-updater.
 func InitWithDir(dir string) (*localStore, error) {
 	if dir == "" {
-		return nil, fmt.Errorf("must supply non empty directory")
+		return nil, fmt.Errorf("directory cannot be empty string")
 	}
 	return &localStore{directory: dir}, nil
 }
@@ -75,7 +75,7 @@ func (l *localStore) LoadLocalData() (*localData, error) {
 
 	var data localData
 	if err := json.NewDecoder(f).Decode(&data); err != nil {
-		return nil, fmt.Errorf("failed to decode data: %w", err)
+		return nil, fmt.Errorf("failed to decode data from %s: %w", datafileFullPath, err)
 	}
 
 	return &data, nil
@@ -84,12 +84,13 @@ func (l *localStore) LoadLocalData() (*localData, error) {
 // UpdateLocalData updates the local store with the provided localData.
 func (l *localStore) UpdateLocalData(localData *localData) error {
 	if err := os.MkdirAll(l.directory, 0o755); err != nil {
-		return fmt.Errorf("failed to create directory for localStore: %w", err)
+		return fmt.Errorf("failed to create directory for localStore at %s: %w", l.directory, err)
 	}
 
-	f, err := os.Create(l.localDataPath())
+	localDataPath := l.localDataPath()
+	f, err := os.Create(localDataPath)
 	if err != nil {
-		return fmt.Errorf("failed to create data file: %w", err)
+		return fmt.Errorf("failed to create data file at %s: %w", localDataPath, err)
 	}
 	defer f.Close()
 
