@@ -77,20 +77,27 @@ func TestUpdateLocalData(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name    string
-		data    localData
-		want    string
-		wantErr string
+		name         string
+		existingData *localData
+		data         *localData
+		want         string
+		wantErr      string
 	}{
 		{
 			name: "time_0_encodes",
-			data: localData{LastVersionCheckUTCEpochSec: 0},
+			data: &localData{LastVersionCheckUTCEpochSec: 0},
 			want: "{\"last_version_check_utc_epoch_sec\":0}\n",
 		},
 		{
 			name: "generic_time",
-			data: localData{LastVersionCheckUTCEpochSec: 1704825396},
+			data: &localData{LastVersionCheckUTCEpochSec: 1704825396},
 			want: "{\"last_version_check_utc_epoch_sec\":1704825396}\n",
+		},
+		{
+			name:         "update_when_exists",
+			existingData: &localData{LastVersionCheckUTCEpochSec: 1604825396},
+			data:         &localData{LastVersionCheckUTCEpochSec: 1704825396},
+			want:         "{\"last_version_check_utc_epoch_sec\":1704825396}\n",
 		},
 	}
 
@@ -104,8 +111,14 @@ func TestUpdateLocalData(t *testing.T) {
 			localStore := localStore{
 				directory: tempDir,
 			}
+			if tc.existingData != nil {
+				err := localStore.updateLocalData(tc.existingData)
+				if err != nil {
+					t.Errorf("failed to load existing data: %v", err)
+				}
+			}
 
-			err := localStore.updateLocalData(&tc.data)
+			err := localStore.updateLocalData(tc.data)
 
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
