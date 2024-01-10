@@ -152,7 +152,14 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 	}
 
 	if checkVersion.LessThan(currentVersion) {
-		output, err := updateVersionOutput(result.AppName, checkVersion.String(), currentVersion.String(), result.GitHubURL, result.AppID)
+		output, err := updateVersionOutput(&versionUpdateDetails{
+			AppName:        result.AppName,
+			CheckVersion:   checkVersion.String(),
+			CurrentVersion: currentVersion.String(),
+			GitHubURL:      result.GitHubURL,
+			OptOutEnvVar:   ignoreVersionsEnvVar(result.AppID),
+		})
+
 		if err != nil {
 			return fmt.Errorf("failed to generate version check output: %w", err)
 		}
@@ -164,15 +171,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 	return nil
 }
 
-func updateVersionOutput(appName, checkVersion, currentVersion, githubURL, appID string) ([]byte, error) {
-	updateDetails := versionUpdateDetails{
-		AppName:        appName,
-		CheckVersion:   checkVersion,
-		CurrentVersion: currentVersion,
-		GitHubURL:      githubURL,
-		OptOutEnvVar:   ignoreVersionsEnvVar(appID),
-	}
-
+func updateVersionOutput(updateDetails *versionUpdateDetails) ([]byte, error) {
 	tmpl, err := template.New("version_update_template").Parse(outputTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create output text template: %w", err)
