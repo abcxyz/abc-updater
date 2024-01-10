@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package abcupdater
+package localstore
 
 import (
 	"io"
@@ -25,7 +25,7 @@ import (
 	"github.com/abcxyz/pkg/testutil"
 )
 
-func TestInitLocalStoreWithDir(t *testing.T) {
+func TestInitWithDir(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
@@ -53,7 +53,7 @@ func TestInitLocalStoreWithDir(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			localStore, err := initLocalStoreWithDir(tc.dir)
+			localStore, err := InitWithDir(tc.dir)
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
 			}
@@ -112,13 +112,13 @@ func TestUpdateLocalData(t *testing.T) {
 				directory: tempDir,
 			}
 			if tc.existingData != nil {
-				err := localStore.updateLocalData(tc.existingData)
+				err := localStore.UpdateLocalData(tc.existingData)
 				if err != nil {
 					t.Errorf("failed to load existing data: %v", err)
 				}
 			}
 
-			err := localStore.updateLocalData(tc.data)
+			err := localStore.UpdateLocalData(tc.data)
 
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
@@ -192,7 +192,7 @@ func TestLoadLocalData(t *testing.T) {
 			}
 
 			// run
-			got, err := localStore.loadLocalData()
+			got, err := localStore.LoadLocalData()
 
 			// validate
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package abcupdater
+package localstore
 
 import (
 	"encoding/json"
@@ -31,25 +31,21 @@ type localStore struct {
 
 const dataFilename = "data.json"
 
-// initLocalStore sets up localStore with the default config location for the app.
-//
-//nolint:unused // Will be used in a followup PR
-func initLocalStore(appID string) (*localStore, error) {
+// Init sets up localStore with the default config location for the app.
+func Init(appID string) (*localStore, error) {
 	if appID == "" {
 		return nil, fmt.Errorf("must supply non empty appID")
 	}
-	dir, err := defaultLocalStoreDir(appID)
+	dir, err := defaulteDir(appID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get default directory: %w", err)
 	}
 
-	return initLocalStoreWithDir(dir)
+	return InitWithDir(dir)
 }
 
-// defaultLocalStoreDir returns the default localStore directory given an appID.
-//
-//nolint:unused // Will be used in a followup PR
-func defaultLocalStoreDir(appID string) (string, error) {
+// defaulteDir returns the default localStore directory given an appID.
+func defaulteDir(appID string) (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
@@ -58,15 +54,16 @@ func defaultLocalStoreDir(appID string) (string, error) {
 	return filepath.Join(homeDir, ".config", "abcupdater", appID), nil
 }
 
-func initLocalStoreWithDir(dir string) (*localStore, error) {
+// InitWithDir sets up localStore with the provided directory.
+func InitWithDir(dir string) (*localStore, error) {
 	if dir == "" {
 		return nil, fmt.Errorf("must supply non empty directory")
 	}
 	return &localStore{directory: dir}, nil
 }
 
-// loadLocalData reads from local store and returns localData.
-func (l *localStore) loadLocalData() (*localData, error) {
+// LoadLocalData reads from local store and returns localData.
+func (l *localStore) LoadLocalData() (*localData, error) {
 	datafileFullPath := filepath.Join(l.directory, dataFilename)
 	f, err := os.Open(datafileFullPath)
 	if err != nil {
@@ -82,8 +79,8 @@ func (l *localStore) loadLocalData() (*localData, error) {
 	return &data, nil
 }
 
-// updateLocalData updates the local store with the provided localData.
-func (l *localStore) updateLocalData(localData *localData) error {
+// UpdateLocalData updates the local store with the provided localData.
+func (l *localStore) UpdateLocalData(localData *localData) error {
 	if err := os.MkdirAll(l.directory, 0o755); err != nil {
 		return fmt.Errorf("failed to create directory for localStore: %w", err)
 	}
