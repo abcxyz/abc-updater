@@ -32,6 +32,7 @@ type localStore struct {
 const dataFilename = "data.json"
 
 // Init sets up localStore with the default config location for the app.
+// This should only be used internally in abc-updater.
 func Init(appID string) (*localStore, error) {
 	if appID == "" {
 		return nil, fmt.Errorf("must supply non empty appID")
@@ -55,6 +56,7 @@ func defaulteDir(appID string) (string, error) {
 }
 
 // InitWithDir sets up localStore with the provided directory.
+// This should only be used internally in abc-updater.
 func InitWithDir(dir string) (*localStore, error) {
 	if dir == "" {
 		return nil, fmt.Errorf("must supply non empty directory")
