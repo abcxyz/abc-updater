@@ -25,37 +25,25 @@ import (
 	"github.com/abcxyz/pkg/testutil"
 )
 
-func TestInitLocalStore(t *testing.T) {
+func TestInitLocalStoreWithDir(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
 	cases := []struct {
-		name     string
-		settings localStoreSettings
-		want     *localStore
-		wantErr  string
+		name    string
+		dir     string
+		want    *localStore
+		wantErr string
 	}{
 		{
-			name: "use_app_id",
-			settings: localStoreSettings{
-				AppID: "hello_1",
-				testLocalStoreDirFn: func(s string) (string, error) {
-					return filepath.Join(tempDir, "hello_1"), nil
-				},
-			},
+			name: "supply_dir",
+			dir:  filepath.Join(tempDir, "hello_1"),
 			want: &localStore{directory: filepath.Join(tempDir, "hello_1")},
 		},
 		{
-			name: "use_directory",
-			settings: localStoreSettings{
-				Directory: filepath.Join(tempDir, "hello_2"),
-			},
-			want: &localStore{directory: filepath.Join(tempDir, "hello_2")},
-		},
-		{
-			name:     "fails_with_no_dir_or_app_id",
-			settings: localStoreSettings{},
-			wantErr:  "must supply either appID or directory in settings",
+			name:    "empty_dir",
+			dir:     "",
+			wantErr: "must supply non empty directory",
 		},
 	}
 
@@ -65,7 +53,7 @@ func TestInitLocalStore(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			localStore, err := initLocalStore(&tc.settings)
+			localStore, err := initLocalStoreWithDir(tc.dir)
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
 			}
@@ -80,11 +68,6 @@ func TestInitLocalStore(t *testing.T) {
 
 			if got, want := localStore.directory, tc.want.directory; got != want {
 				t.Errorf("incorrect directory got=%s, want=%s", got, want)
-			}
-
-			// check that directory exists
-			if _, err := os.Stat(localStore.directory); os.IsNotExist(err) {
-				t.Errorf("directory was not created: %s", localStore.directory)
 			}
 		})
 	}
@@ -101,13 +84,13 @@ func TestUpdateLocalData(t *testing.T) {
 	}{
 		{
 			name: "time_0_encodes",
-			data: localData{LastVersionCheckTimestamp: 0},
-			want: "{\"last_version_check_timestamp\":0}\n",
+			data: localData{LastVersionCheckUTCEpochSec: 0},
+			want: "{\"last_version_check_utc_epoch_sec\":0}\n",
 		},
 		{
 			name: "generic_time",
-			data: localData{LastVersionCheckTimestamp: 1704825396},
-			want: "{\"last_version_check_timestamp\":1704825396}\n",
+			data: localData{LastVersionCheckUTCEpochSec: 1704825396},
+			want: "{\"last_version_check_utc_epoch_sec\":1704825396}\n",
 		},
 	}
 
@@ -128,7 +111,7 @@ func TestUpdateLocalData(t *testing.T) {
 				t.Error(diff)
 			}
 
-			f, err := os.Open(localStore.localDataFilename())
+			f, err := os.Open(localStore.localDataPath())
 			if err != nil {
 				t.Errorf("failed to open data file: %v", err)
 			}
@@ -169,8 +152,8 @@ func TestLoadLocalData(t *testing.T) {
 		},
 		{
 			name: "decodes_valid_json",
-			data: "{\"last_version_check_timestamp\":123}\n",
-			want: &localData{LastVersionCheckTimestamp: 123},
+			data: "{\"last_version_check_utc_epoch_sec\":123}\n",
+			want: &localData{LastVersionCheckUTCEpochSec: 123},
 		},
 	}
 
@@ -186,7 +169,7 @@ func TestLoadLocalData(t *testing.T) {
 				directory: tempDir,
 			}
 
-			f, err := os.Create(localStore.localDataFilename())
+			f, err := os.Create(localStore.localDataPath())
 			if err != nil {
 				t.Errorf("failed to create file:%v", err)
 			}

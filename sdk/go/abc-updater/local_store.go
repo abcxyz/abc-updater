@@ -22,66 +22,53 @@ import (
 )
 
 type localData struct {
-	LastVersionCheckTimestamp int64 `json:"last_version_check_timestamp"`
-}
-
-type localStoreSettings struct {
-	// appID will be used to set a default localStore directory.
-	AppID string
-
-	// directory can be supplied to override the default localStore directory.
-	Directory string
-
-	// testLocalStoreDirFn is used to override the default function for getting localStore dir in tests.
-	testLocalStoreDirFn func(string) (string, error)
+	LastVersionCheckUTCEpochSec int64 `json:"last_version_check_utc_epoch_sec"`
 }
 
 type localStore struct {
 	directory string
 }
 
-const defaultLocalStoreDirFormat = "%s/.config/abcupdater/%s/"
+const dataFilename = "data.json"
 
-// initLocalStore setups up localStore and creates directories if needed.
-func initLocalStore(settings *localStoreSettings) (*localStore, error) {
-	directory := settings.Directory
-	if directory == "" {
-		if settings.AppID == "" {
-			return nil, fmt.Errorf("must supply either appID or directory in settings")
-		}
-		localStoreDirFn := defaultLocalStoreDir
-		if settings.testLocalStoreDirFn != nil {
-			localStoreDirFn = settings.testLocalStoreDirFn
-		}
-
-		defaultDir, err := localStoreDirFn(settings.AppID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get default directory: %w", err)
-		}
-		directory = defaultDir
+// initLocalStore sets up localStore with the default config location for the app.
+//
+//nolint:unused // Will be used in a followup PR
+func initLocalStore(appID string) (*localStore, error) {
+	if appID == "" {
+		return nil, fmt.Errorf("must supply non empty appID")
+	}
+	dir, err := defaultLocalStoreDir(appID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get default directory: %w", err)
 	}
 
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		return nil, fmt.Errorf("failed to create directory for localStore: %w", err)
-	}
-
-	return &localStore{directory: directory}, nil
+	return initLocalStoreWithDir(dir)
 }
 
 // defaultLocalStoreDir returns the default localStore directory given an appID.
+//
+//nolint:unused // Will be used in a followup PR
 func defaultLocalStoreDir(appID string) (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
 	}
 
-	return fmt.Sprintf(defaultLocalStoreDirFormat, homeDir, appID), nil
+	return fmt.Sprintf("%s/.config/abcupdater/%s/", homeDir, appID), nil
+}
+
+func initLocalStoreWithDir(dir string) (*localStore, error) {
+	if dir == "" {
+		return nil, fmt.Errorf("must supply non empty directory")
+	}
+	return &localStore{directory: dir}, nil
 }
 
 // loadLocalData reads from local store and returns localData.
 func (l *localStore) loadLocalData() (*localData, error) {
-	dataFilename := filepath.Join(l.directory, "data.json")
-	f, err := os.Open(dataFilename)
+	datafileFullPath := filepath.Join(l.directory, dataFilename)
+	f, err := os.Open(datafileFullPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open data file: %w", err)
 	}
@@ -97,7 +84,11 @@ func (l *localStore) loadLocalData() (*localData, error) {
 
 // updateLocalData updates the local store with the provided localData.
 func (l *localStore) updateLocalData(localData *localData) error {
-	f, err := os.Create(l.localDataFilename())
+	if err := os.MkdirAll(l.directory, 0o755); err != nil {
+		return fmt.Errorf("failed to create directory for localStore: %w", err)
+	}
+
+	f, err := os.Create(l.localDataPath())
 	if err != nil {
 		return fmt.Errorf("failed to create data file: %w", err)
 	}
@@ -111,7 +102,7 @@ func (l *localStore) updateLocalData(localData *localData) error {
 	return nil
 }
 
-// localDataFilename is the fullpath for the local data file.
-func (l *localStore) localDataFilename() string {
-	return filepath.Join(l.directory, "data.json")
+// localDataPath is the fullpath for the local data file.
+func (l *localStore) localDataPath() string {
+	return filepath.Join(l.directory, dataFilename)
 }
