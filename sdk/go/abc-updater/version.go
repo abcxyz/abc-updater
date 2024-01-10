@@ -59,10 +59,10 @@ type config struct {
 
 const (
 	appDataURLFormat = "%s/%s/data.json"
-	outputFormat     = "A new version of %s is available! Your current version is %s. Version %s is available at %s.\n" +
-		"\n" +
-		"To disable notifications for this new version, set %s=%q." +
-		" To disable all version notifications, set %s=\"all\".\n"
+	outputFormat     = `A new version of %s is available! Your current version is %s. Version %s is available at %s.
+
+To disable notifications for this new version, set %s=%q. To disable all version notifications, set %s=\"all\".
+`
 	maxErrorResponseBytes = 2048
 )
 
