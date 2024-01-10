@@ -159,7 +159,6 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 			GitHubURL:      result.GitHubURL,
 			OptOutEnvVar:   ignoreVersionsEnvVar(result.AppID),
 		})
-
 		if err != nil {
 			return fmt.Errorf("failed to generate version check output: %w", err)
 		}
