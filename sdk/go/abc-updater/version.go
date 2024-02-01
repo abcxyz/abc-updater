@@ -48,10 +48,10 @@ type CheckVersionParams struct {
 // AppResponse is the response object for an app version request.
 // It contains information about the most recent version for a given app.
 type AppResponse struct {
-	AppID          string `json:"app_id"`
-	AppName        string `json:"app_name"`
-	GitHubURL      string `json:"github_url"`
-	CurrentVersion string `json:"current_version"`
+	AppID          string `json:"appId"`
+	AppName        string `json:"appName"`
+	AppRepoURL     string `json:"appRepoUrl"`
+	CurrentVersion string `json:"currentVersion"`
 }
 
 type config struct {
@@ -156,7 +156,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 			AppName:        result.AppName,
 			CheckVersion:   checkVersion.String(),
 			CurrentVersion: currentVersion.String(),
-			GitHubURL:      result.GitHubURL,
+			GitHubURL:      result.AppRepoURL,
 			OptOutEnvVar:   ignoreVersionsEnvVar(result.AppID),
 		})
 		if err != nil {

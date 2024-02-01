@@ -35,7 +35,7 @@ func TestCheckAppVersion(t *testing.T) {
 	sampleAppResponse, err := json.Marshal(AppResponse{
 		AppID:          "sample_app_1",
 		AppName:        "Sample App 1",
-		GitHubURL:      "https://github.com/abcxyz/sample_app_1",
+		AppRepoURL:     "https://github.com/abcxyz/sample_app_1",
 		CurrentVersion: "1.0.0",
 	})
 	if err != nil {
