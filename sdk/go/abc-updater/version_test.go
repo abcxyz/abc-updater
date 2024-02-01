@@ -72,11 +72,10 @@ func TestCheckAppVersion(t *testing.T) {
 			env: map[string]string{
 				"ABC_UPDATER_URL": ts.URL,
 			},
-			want: fmt.Sprintf(outputFormat,
-				"Sample App 1",
-				"0.0.1",
-				"1.0.0",
-				"https://github.com/abcxyz/sample_app_1"),
+			want: `A new version of Sample App 1 is available! Your current version is 0.0.1. Version 1.0.0 is available at https://github.com/abcxyz/sample_app_1.
+
+To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0". To disable all version notifications, set SAMPLE_APP_1_IGNORE_VERSIONS="all".
+`,
 		},
 		{
 			name:    "current_version",
@@ -135,11 +134,10 @@ func TestCheckAppVersion(t *testing.T) {
 				"ABC_UPDATER_URL":                    ts.URL,
 				ignoreVersionsEnvVar("sample_app_1"): "0.0.2",
 			},
-			want: fmt.Sprintf(outputFormat,
-				"Sample App 1",
-				"0.0.1",
-				"1.0.0",
-				"https://github.com/abcxyz/sample_app_1"),
+			want: `A new version of Sample App 1 is available! Your current version is 0.0.1. Version 1.0.0 is available at https://github.com/abcxyz/sample_app_1.
+
+To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0". To disable all version notifications, set SAMPLE_APP_1_IGNORE_VERSIONS="all".
+`,
 		},
 	}
 

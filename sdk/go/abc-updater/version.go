@@ -15,12 +15,14 @@
 package abcupdater
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"text/template"
 	"time"
 
 	"github.com/hashicorp/go-version"
@@ -57,9 +59,20 @@ type config struct {
 	RequestTimeout time.Duration `env:"ABC_UPDATER_TIMEOUT,default=2m"`
 }
 
+type versionUpdateDetails struct {
+	AppName        string
+	CheckVersion   string
+	CurrentVersion string
+	GitHubURL      string
+	OptOutEnvVar   string
+}
+
 const (
-	appDataURLFormat      = "%s/%s/data.json"
-	outputFormat          = "A new version of %s is available! Your current version is %s. Version %s is available at %s.\n"
+	appDataURLFormat = "%s/%s/data.json"
+	outputTemplate   = `A new version of {{.AppName}} is available! Your current version is {{.CheckVersion}}. Version {{.CurrentVersion}} is available at {{.GitHubURL}}.
+
+To disable notifications for this new version, set {{.OptOutEnvVar}}="{{.CurrentVersion}}". To disable all version notifications, set {{.OptOutEnvVar}}="all".
+`
 	maxErrorResponseBytes = 2048
 )
 
@@ -139,11 +152,35 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 	}
 
 	if checkVersion.LessThan(currentVersion) {
-		outStr := fmt.Sprintf(outputFormat, result.AppName, checkVersion, currentVersion, result.GitHubURL)
-		if _, err := params.Writer.Write([]byte(outStr)); err != nil {
+		output, err := updateVersionOutput(&versionUpdateDetails{
+			AppName:        result.AppName,
+			CheckVersion:   checkVersion.String(),
+			CurrentVersion: currentVersion.String(),
+			GitHubURL:      result.GitHubURL,
+			OptOutEnvVar:   ignoreVersionsEnvVar(result.AppID),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to generate version check output: %w", err)
+		}
+		if _, err := params.Writer.Write(output); err != nil {
 			return fmt.Errorf("failed to write output: %w", err)
 		}
 	}
 
 	return nil
+}
+
+func updateVersionOutput(updateDetails *versionUpdateDetails) ([]byte, error) {
+	tmpl, err := template.New("version_update_template").Parse(outputTemplate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create output text template: %w", err)
+	}
+
+	var b bytes.Buffer
+	err = tmpl.Execute(&b, updateDetails)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute template: %w", err)
+	}
+
+	return b.Bytes(), nil
 }
