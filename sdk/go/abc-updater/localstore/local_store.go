@@ -24,7 +24,8 @@ import (
 )
 
 type localData struct {
-	LastVersionCheckUTCEpochSec int64 `json:"last_version_check_utc_epoch_sec"`
+	// Last time version information was checked, in UTC epoch seconds.
+	LastVersionCheck int64 `json:"lastVersionCheck"`
 }
 
 type localStore struct {

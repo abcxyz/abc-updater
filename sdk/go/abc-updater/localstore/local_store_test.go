@@ -85,19 +85,19 @@ func TestUpdateLocalData(t *testing.T) {
 	}{
 		{
 			name: "time_0_encodes",
-			data: &localData{LastVersionCheckUTCEpochSec: 0},
-			want: "{\"last_version_check_utc_epoch_sec\":0}\n",
+			data: &localData{LastVersionCheck: 0},
+			want: "{\"lastVersionCheck\":0}\n",
 		},
 		{
 			name: "generic_time",
-			data: &localData{LastVersionCheckUTCEpochSec: 1704825396},
-			want: "{\"last_version_check_utc_epoch_sec\":1704825396}\n",
+			data: &localData{LastVersionCheck: 1704825396},
+			want: "{\"lastVersionCheck\":1704825396}\n",
 		},
 		{
 			name:         "update_when_exists",
-			existingData: &localData{LastVersionCheckUTCEpochSec: 1604825396},
-			data:         &localData{LastVersionCheckUTCEpochSec: 1704825396},
-			want:         "{\"last_version_check_utc_epoch_sec\":1704825396}\n",
+			existingData: &localData{LastVersionCheck: 1604825396},
+			data:         &localData{LastVersionCheck: 1704825396},
+			want:         "{\"lastVersionCheck\":1704825396}\n",
 		},
 	}
 
@@ -165,8 +165,8 @@ func TestLoadLocalData(t *testing.T) {
 		},
 		{
 			name: "decodes_valid_json",
-			data: "{\"last_version_check_utc_epoch_sec\":123}\n",
-			want: &localData{LastVersionCheckUTCEpochSec: 123},
+			data: "{\"lastVersionCheck\":123}\n",
+			want: &localData{LastVersionCheck: 123},
 		},
 	}
 
