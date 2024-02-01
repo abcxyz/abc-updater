@@ -50,7 +50,7 @@ type CheckVersionParams struct {
 type AppResponse struct {
 	AppID          string `json:"appId"`
 	AppName        string `json:"appName"`
-	GitHubURL      string `json:"githubUrl"`
+	GitHubURL      string `json:"gitHubUrl"`
 	CurrentVersion string `json:"currentVersion"`
 }
 
