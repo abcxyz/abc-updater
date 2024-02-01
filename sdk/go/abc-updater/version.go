@@ -50,7 +50,7 @@ type CheckVersionParams struct {
 type AppResponse struct {
 	AppID          string `json:"appId"`
 	AppName        string `json:"appName"`
-	GitHubURL      string `json:"gitHubUrl"`
+	AppRepoURL     string `json:"appRepoUrl"`
 	CurrentVersion string `json:"currentVersion"`
 }
 
@@ -156,7 +156,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 			AppName:        result.AppName,
 			CheckVersion:   checkVersion.String(),
 			CurrentVersion: currentVersion.String(),
-			GitHubURL:      result.GitHubURL,
+			GitHubURL:      result.AppRepoURL,
 			OptOutEnvVar:   ignoreVersionsEnvVar(result.AppID),
 		})
 		if err != nil {
