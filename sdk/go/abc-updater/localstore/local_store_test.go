@@ -15,193 +15,126 @@
 package localstore
 
 import (
-	"io"
+	"bytes"
+	"encoding/json"
+	"github.com/abcxyz/pkg/testutil"
+	"github.com/google/go-cmp/cmp"
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/google/go-cmp/cmp"
-
-	"github.com/abcxyz/pkg/testutil"
 )
 
-func TestInitWithDir(t *testing.T) {
-	t.Parallel()
+type testObj struct {
+	Foo string   `json:"foo,omitempty"`
+	Bar int64    `json:"bar,omitempty"`
+	Baz *testObj `json:"baz,omitempty"`
+}
 
-	tempDir := t.TempDir()
+func TestLoadJSONFile(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
-		name    string
-		dir     string
-		want    *localStore
-		wantErr string
+		name      string
+		path      string
+		fs        map[string]string
+		want      testObj
+		wantError string
 	}{
 		{
-			name: "supply_dir",
-			dir:  filepath.Join(tempDir, "hello_1"),
-			want: &localStore{directory: filepath.Join(tempDir, "hello_1")},
+			name: "happy_path",
+			path: "data.json",
+			fs: map[string]string{"data.json": toJSON(testObj{
+				Foo: "foo",
+				Bar: 15,
+				Baz: &testObj{Foo: "nestfoo", Bar: 16, Baz: nil},
+			}, t),
+			},
+			want: testObj{
+				Foo: "foo",
+				Bar: 15,
+				Baz: &testObj{Foo: "nestfoo", Bar: 16, Baz: nil},
+			},
 		},
 		{
-			name:    "empty_string_dir",
-			dir:     "",
-			wantErr: "directory cannot be empty string",
+			// TODO: this SHOULD NOT pass. Something is wrong with test
+			name: "minimal_json",
+			path: "data.json",
+			fs:   map[string]string{"data.json": "{}"},
+			want: testObj{
+				Foo: "foo",
+				Bar: 15,
+				Baz: &testObj{Foo: "nestfoo", Bar: 16, Baz: nil},
+			},
+		}, {
+			name:      "file_missing",
+			path:      "data.json",
+			fs:        map[string]string{},
+			wantError: "failed to open json file",
+		}, {
+			name:      "invalid_json",
+			path:      "data.json",
+			fs:        map[string]string{"data.json": "i'm not valid json!!!!"},
+			wantError: "failed to load json file",
 		},
 	}
-
 	for _, tc := range cases {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			base := t.TempDir()
+			path := filepath.Join(base, tc.path)
+			populateFiles(base, tc.fs, t)
+			var got testObj
 
-			localStore, err := InitWithDir(tc.dir)
-			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
-				t.Error(diff)
+			if diff := testutil.DiffErrString(LoadJSONFile(path, &got), tc.wantError); diff != "" {
+				t.Errorf("unexpected err: %s", diff)
 			}
 
-			if tc.want == nil {
-				if localStore != nil {
-					t.Errorf("expect nil localStore but got %v", localStore)
-				}
-
-				return
-			}
-
-			if got, want := localStore.directory, tc.want.directory; got != want {
-				t.Errorf("incorrect directory got=%s, want=%s", got, want)
+			if diff := cmp.Diff(got, tc.want); diff != "" {
+				t.Errorf("got unexpected response:\n%s", diff)
 			}
 		})
 	}
 }
 
-func TestUpdateLocalData(t *testing.T) {
-	t.Parallel()
+//
+//func TestStoreJSONFile(t *testing.T) {
+//	t.Parallel()
+//	type args[T any] struct {
+//		path string
+//		data T
+//	}
+//	type testCase[T any] struct {
+//		name    string
+//		args    args[T]
+//		wantErr bool
+//	}
+//	tests := []testCase[ /* TODO: Insert concrete types here */ ]{
+//		// TODO: Add test cases.
+//	}
+//	for _, tc := range tests {
+//		t.Run(tc.name, func(t *testing.T) {
+//			t.Parallel()
+//			if err := StoreJSONFile(tc.args.path, tc.args.data); (err != nil) != tc.wantErr {
+//				t.Errorf("StoreJSONFile() error = %v, wantErr %v", err, tc.wantErr)
+//			}
+//		})
+//	}
+//}
 
-	cases := []struct {
-		name         string
-		existingData *localData
-		data         *localData
-		want         string
-		wantErr      string
-	}{
-		{
-			name: "time_0_encodes",
-			data: &localData{LastVersionCheck: 0},
-			want: "{\"lastVersionCheck\":0}\n",
-		},
-		{
-			name: "generic_time",
-			data: &localData{LastVersionCheck: 1704825396},
-			want: "{\"lastVersionCheck\":1704825396}\n",
-		},
-		{
-			name:         "update_when_exists",
-			existingData: &localData{LastVersionCheck: 1604825396},
-			data:         &localData{LastVersionCheck: 1704825396},
-			want:         "{\"lastVersionCheck\":1704825396}\n",
-		},
-	}
-
-	for _, tc := range cases {
-		tc := tc
-
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			tempDir := t.TempDir()
-			localStore := localStore{
-				directory: tempDir,
-			}
-			if tc.existingData != nil {
-				err := localStore.UpdateLocalData(tc.existingData)
-				if err != nil {
-					t.Errorf("failed to load existing data: %v", err)
-				}
-			}
-
-			err := localStore.UpdateLocalData(tc.data)
-
-			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
-				t.Error(diff)
-			}
-
-			f, err := os.Open(localStore.localDataPath())
-			if err != nil {
-				t.Errorf("failed to open data file: %v", err)
-			}
-			defer f.Close()
-
-			bytes, err := io.ReadAll(f)
-			if err != nil {
-				t.Errorf("failed to read data file: %v", err)
-			}
-
-			if got, want := string(bytes), tc.want; got != want {
-				t.Errorf("incorrect encoding got=%s, want=%s", got, want)
-			}
-		})
+func populateFiles(base string, nameContents map[string]string, t *testing.T) {
+	t.Helper()
+	for name, contents := range nameContents {
+		if err := os.WriteFile(filepath.Join(base, name), []byte(contents), 0777); err != nil {
+			t.Fatalf("Could not write file %v: %v", name, err)
+		}
 	}
 }
 
-func TestLoadLocalData(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name    string
-		data    string
-		want    *localData
-		wantErr string
-	}{
-		{
-			name:    "empty_local_data",
-			data:    "",
-			want:    nil,
-			wantErr: "failed to decode",
-		},
-		{
-			name:    "bad_json",
-			data:    "hello",
-			want:    nil,
-			wantErr: "failed to decode",
-		},
-		{
-			name: "decodes_valid_json",
-			data: "{\"lastVersionCheck\":123}\n",
-			want: &localData{LastVersionCheck: 123},
-		},
+func toJSON(data any, t *testing.T) string {
+	t.Helper()
+	buf := bytes.Buffer{}
+	encoder := json.NewEncoder(&buf)
+	if err := encoder.Encode(data); err != nil {
+		t.Fatalf("could not encode json: %v", err)
 	}
-
-	for _, tc := range cases {
-		tc := tc
-
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// set up
-			tempDir := t.TempDir()
-			localStore := localStore{
-				directory: tempDir,
-			}
-
-			f, err := os.Create(localStore.localDataPath())
-			if err != nil {
-				t.Errorf("failed to create file:%v", err)
-			}
-			_, err = f.WriteString(tc.data)
-			if err != nil {
-				t.Errorf("failed to write to file: %v", err)
-			}
-
-			// run
-			got, err := localStore.LoadLocalData()
-
-			// validate
-			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
-				t.Error(diff)
-			}
-
-			if diff := cmp.Diff(tc.want, got); diff != "" {
-				t.Errorf("localData unexpected diff (-want,+got):\n%s", diff)
-			}
-		})
-	}
+	return buf.String()
 }

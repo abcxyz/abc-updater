@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package localstore is an interface for persistent JSON storage on the users machine. This
-// is internal and only intended to be imported from this repo.
+// Package localstore is an helper for persistent JSON storage on the users machine. It is intended for internal use.
 package localstore
 
 import (
@@ -23,32 +22,8 @@ import (
 	"path/filepath"
 )
 
-type localData struct {
-	// Last time version information was checked, in UTC epoch seconds.
-	LastVersionCheck int64 `json:"lastVersionCheck"`
-}
-
-type localStore struct {
-	directory string
-}
-
-const dataFilename = "data.json"
-
-// Init sets up localStore with the default config location for the app.
-func Init(appID string) (*localStore, error) {
-	if appID == "" {
-		return nil, fmt.Errorf("must supply non empty appID")
-	}
-	dir, err := defaultDir(appID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get default directory: %w", err)
-	}
-
-	return InitWithDir(dir)
-}
-
-// defaultDir returns the default localStore directory given an appID.
-func defaultDir(appID string) (string, error) {
+// DefaultDir returns the default local updater storage directory given an appID.
+func DefaultDir(appID string) (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
@@ -57,53 +32,37 @@ func defaultDir(appID string) (string, error) {
 	return filepath.Join(homeDir, ".config", "abcupdater", appID), nil
 }
 
-// InitWithDir sets up localStore with the provided directory.
-func InitWithDir(dir string) (*localStore, error) {
-	if dir == "" {
-		return nil, fmt.Errorf("directory cannot be empty string")
-	}
-	return &localStore{directory: dir}, nil
-}
-
-// LoadLocalData reads from local store and returns localData.
-func (l *localStore) LoadLocalData() (*localData, error) {
-	datafileFullPath := filepath.Join(l.directory, dataFilename)
-	f, err := os.Open(datafileFullPath)
+// LoadJSONFile unmarshals file contents from the given file path into a generic object. data cannot be nil.
+func LoadJSONFile[T any](path string, data T) error {
+	f, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open data file: %w", err)
+		return fmt.Errorf("failed to open json file: %w", err)
 	}
 	defer f.Close()
 
-	var data localData
-	if err := json.NewDecoder(f).Decode(&data); err != nil {
-		return nil, fmt.Errorf("failed to decode data from %s: %w", datafileFullPath, err)
+	if err := json.NewDecoder(f).Decode(data); err != nil {
+		return fmt.Errorf("failed to load json file: %w", err)
 	}
-
-	return &data, nil
+	return nil
 }
 
-// UpdateLocalData updates the local store with the provided localData.
-func (l *localStore) UpdateLocalData(localData *localData) error {
-	if err := os.MkdirAll(l.directory, 0o755); err != nil {
-		return fmt.Errorf("failed to create directory for localStore at %s: %w", l.directory, err)
+// StoreJSONFile marshals data from the given object into file with given path. File and directory tree will be
+// created if they do not exist. data cannot be nil.
+func StoreJSONFile[T any](path string, data T) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("failed to create directory for json file at %s: %w", dir, err)
 	}
-
-	localDataPath := l.localDataPath()
-	f, err := os.Create(localDataPath)
+	f, err := os.Create(path)
 	if err != nil {
-		return fmt.Errorf("failed to create data file at %s: %w", localDataPath, err)
+		return fmt.Errorf("failed to create json file at %s: %w", path, err)
 	}
 	defer f.Close()
 
 	encoder := json.NewEncoder(f)
-	if err := encoder.Encode(localData); err != nil {
-		return fmt.Errorf("failed to encode data: %w", err)
+	if err := encoder.Encode(data); err != nil {
+		return fmt.Errorf("failed to encode JSON: %w", err)
 	}
 
 	return nil
-}
-
-// localDataPath is the fullpath for the local data file.
-func (l *localStore) localDataPath() string {
-	return filepath.Join(l.directory, dataFilename)
 }
