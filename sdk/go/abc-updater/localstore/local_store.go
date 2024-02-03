@@ -34,6 +34,7 @@ func DefaultDir(appID string) (string, error) {
 }
 
 // LoadJSONFile unmarshals file contents from the given file path into a generic object. data cannot be nil.
+// errors.Is(err, os.ErrNotExist) will return true if file doesn't exist.
 func LoadJSONFile[T any](path string, data T) error {
 	f, err := os.Open(path)
 	if err != nil {
