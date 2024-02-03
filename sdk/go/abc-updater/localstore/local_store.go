@@ -51,7 +51,7 @@ func LoadJSONFile[T any](path string, data T) error {
 // created if they do not exist. data cannot be nil.
 func StoreJSONFile[T any](path string, data T) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("failed to create directory for json file at %s: %w", dir, err)
 	}
 	f, err := os.Create(path)

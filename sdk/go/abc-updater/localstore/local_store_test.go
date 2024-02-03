@@ -23,8 +23,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/abcxyz/pkg/testutil"
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/abcxyz/pkg/testutil"
 )
 
 type testObj struct {
@@ -45,11 +46,12 @@ func TestLoadJSONFile(t *testing.T) {
 		{
 			name: "happy_path",
 			path: "data.json",
-			fs: map[string]string{"data.json": toJSON(testObj{
-				Foo: "foo",
-				Bar: 15,
-				Baz: &testObj{Foo: "nestfoo", Bar: 16, Baz: nil},
-			}, t),
+			fs: map[string]string{
+				"data.json": toJSON(t, testObj{
+					Foo: "foo",
+					Bar: 15,
+					Baz: &testObj{Foo: "nestfoo", Bar: 16, Baz: nil},
+				}),
 			},
 			want: testObj{
 				Foo: "foo",
@@ -62,12 +64,14 @@ func TestLoadJSONFile(t *testing.T) {
 			path: "data.json",
 			fs:   map[string]string{"data.json": "{}"},
 			want: testObj{},
-		}, {
+		},
+		{
 			name:      "file_missing",
 			path:      "data.json",
 			fs:        map[string]string{},
 			wantError: "failed to open json file",
-		}, {
+		},
+		{
 			name:      "invalid_json",
 			path:      "data.json",
 			fs:        map[string]string{"data.json": "i'm not valid json!!!!"},
@@ -112,17 +116,19 @@ func TestStoreJSONFile(t *testing.T) {
 				Bar: 1,
 				Baz: nil,
 			},
-			fs: map[string]string{"data.json": toJSON(testObj{
-				Foo: "foo",
-				Bar: 15,
-				Baz: &testObj{Foo: "nestfoo", Bar: 16, Baz: nil},
-			}, t),
+			fs: map[string]string{
+				"data.json": toJSON(t, testObj{
+					Foo: "foo",
+					Bar: 15,
+					Baz: &testObj{Foo: "nestfoo", Bar: 16, Baz: nil},
+				}),
 			},
-			wantFS: map[string]string{"data.json": toJSON(testObj{
-				Foo: "bar",
-				Bar: 1,
-				Baz: nil,
-			}, t),
+			wantFS: map[string]string{
+				"data.json": toJSON(t, testObj{
+					Foo: "bar",
+					Bar: 1,
+					Baz: nil,
+				}),
 			},
 		},
 		{
@@ -134,11 +140,12 @@ func TestStoreJSONFile(t *testing.T) {
 				Baz: nil,
 			},
 			fs: map[string]string{},
-			wantFS: map[string]string{"foo/bar/data.json": toJSON(testObj{
-				Foo: "bar",
-				Bar: 1,
-				Baz: nil,
-			}, t),
+			wantFS: map[string]string{
+				"foo/bar/data.json": toJSON(t, testObj{
+					Foo: "bar",
+					Bar: 1,
+					Baz: nil,
+				}),
 			},
 		},
 	}
@@ -164,13 +171,13 @@ func TestStoreJSONFile(t *testing.T) {
 func populateFiles(t *testing.T, base string, nameContents map[string]string) {
 	t.Helper()
 	for name, contents := range nameContents {
-		if err := os.WriteFile(filepath.Join(base, filepath.FromSlash(name)), []byte(contents), 0777); err != nil {
+		if err := os.WriteFile(filepath.Join(base, filepath.FromSlash(name)), []byte(contents), 0o600); err != nil {
 			t.Fatalf("Could not write file %v: %v", name, err)
 		}
 	}
 }
 
-func toJSON(data any, t *testing.T) string {
+func toJSON(t *testing.T, data any) string {
 	t.Helper()
 	buf := bytes.Buffer{}
 	encoder := json.NewEncoder(&buf)

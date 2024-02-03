@@ -26,10 +26,10 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/abcxyz/abc-updater/sdk/go/abc-updater/localstore"
-
 	"github.com/hashicorp/go-version"
 	"github.com/sethvargo/go-envconfig"
+
+	"github.com/abcxyz/abc-updater/sdk/go/abc-updater/localstore"
 )
 
 // CheckVersionParams are the parameters for checking for application updates.
@@ -124,7 +124,10 @@ func (c *CheckVersionParams) setLocalCachedData(data *LocalVersionData) error {
 		}
 		path = filepath.Join(dir, localVersionFileName)
 	}
-	return localstore.StoreJSONFile(path, data)
+	if err := localstore.StoreJSONFile(path, data); err != nil {
+		return fmt.Errorf("could not cache version: %w", err)
+	}
+	return nil
 }
 
 // CheckAppVersion checks if a newer version of an app is available. Relevant update info will be
