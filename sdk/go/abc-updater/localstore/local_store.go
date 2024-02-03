@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package localstore is an helper for persistent JSON storage on the users machine. It is intended for internal use.
+// Package localstore is a helper for persistent JSON storage on the users
+// machine.
 package localstore
 
 import (
