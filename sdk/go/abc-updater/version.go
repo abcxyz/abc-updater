@@ -94,7 +94,7 @@ To disable notifications for this new version, set {{.OptOutEnvVar}}="{{.Current
 	maxErrorResponseBytes = 2048
 )
 
-func (c *CheckVersionParams) getLocalCachedData() (*LocalVersionData, error) {
+func (c *CheckVersionParams) loadLocalCachedData() (*LocalVersionData, error) {
 	var path string
 	if c.CacheFileOverride != "" {
 		path = c.CacheFileOverride
@@ -148,7 +148,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 	}
 
 	fetchNewData := true
-	cachedData, err := params.getLocalCachedData()
+	cachedData, err := params.loadLocalCachedData()
 	if err == nil && cachedData != nil {
 		oneDayAgo := time.Now().Add(-24 * time.Hour)
 		fetchNewData = oneDayAgo.Unix() >= cachedData.LastCheckTimestamp
