@@ -171,7 +171,8 @@ func TestStoreJSONFile(t *testing.T) {
 func populateFiles(t *testing.T, base string, nameContents map[string]string) {
 	t.Helper()
 	for name, contents := range nameContents {
-		if err := os.WriteFile(filepath.Join(base, filepath.FromSlash(name)), []byte(contents), 0o600); err != nil {
+		//nolint:gosec // if you look at os.Create() 666 is the default. User's umask may further restrict permissions.
+		if err := os.WriteFile(filepath.Join(base, filepath.FromSlash(name)), []byte(contents), 0o666); err != nil {
 			t.Fatalf("Could not write file %v: %v", name, err)
 		}
 	}
