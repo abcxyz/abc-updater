@@ -19,13 +19,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/abcxyz/abc-updater/sdk/go/abc-updater/localstore"
 	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
 	"text/template"
 	"time"
+
+	"github.com/abcxyz/abc-updater/sdk/go/abc-updater/localstore"
 
 	"github.com/hashicorp/go-version"
 	"github.com/sethvargo/go-envconfig"
@@ -45,6 +46,10 @@ type CheckVersionParams struct {
 
 	// An optional Lookuper to load envconfig structs. Will default to os environment variables.
 	Lookuper envconfig.Lookuper
+
+	// Optional override for cached file location. Mostly intended for testing.
+	// If empty uses default location.
+	CacheFileOverride string
 }
 
 // AppResponse is the response object for an app version request.
@@ -89,12 +94,18 @@ To disable notifications for this new version, set {{.OptOutEnvVar}}="{{.Current
 )
 
 func (c *CheckVersionParams) getLocalCachedData() (*LocalVersionData, error) {
-	dir, err := localstore.DefaultDir(c.AppID)
-	if err != nil {
-		return nil, fmt.Errorf("could not calculate cache path: %w", err)
+	var path string
+	if c.CacheFileOverride != "" {
+		path = c.CacheFileOverride
+	} else {
+		dir, err := localstore.DefaultDir(c.AppID)
+		if err != nil {
+			return nil, fmt.Errorf("could not calculate cache path: %w", err)
+		}
+		path = filepath.Join(dir, localVersionFileName)
 	}
 	var cached LocalVersionData
-	err = localstore.LoadJSONFile(filepath.Join(dir, localVersionFileName), &cached)
+	err := localstore.LoadJSONFile(path, &cached)
 	if err != nil {
 		return nil, fmt.Errorf("could not load cached data: %w", err)
 	}
@@ -102,11 +113,17 @@ func (c *CheckVersionParams) getLocalCachedData() (*LocalVersionData, error) {
 }
 
 func (c *CheckVersionParams) setLocalCachedData(data *LocalVersionData) error {
-	dir, err := localstore.DefaultDir(c.AppID)
-	if err != nil {
-		return fmt.Errorf("could not calculate cache path: %w", err)
+	var path string
+	if c.CacheFileOverride != "" {
+		path = c.CacheFileOverride
+	} else {
+		dir, err := localstore.DefaultDir(c.AppID)
+		if err != nil {
+			return fmt.Errorf("could not calculate cache path: %w", err)
+		}
+		path = filepath.Join(dir, localVersionFileName)
 	}
-	return localstore.StoreJSONFile(filepath.Join(dir, localVersionFileName), data)
+	return localstore.StoreJSONFile(path, data)
 }
 
 // CheckAppVersion checks if a newer version of an app is available. Relevant update info will be

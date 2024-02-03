@@ -17,11 +17,14 @@ package localstore
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/abcxyz/pkg/testutil"
-	"github.com/google/go-cmp/cmp"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/abcxyz/pkg/testutil"
+	"github.com/google/go-cmp/cmp"
 )
 
 type testObj struct {
@@ -55,15 +58,10 @@ func TestLoadJSONFile(t *testing.T) {
 			},
 		},
 		{
-			// TODO: this SHOULD NOT pass. Something is wrong with test
 			name: "minimal_json",
 			path: "data.json",
 			fs:   map[string]string{"data.json": "{}"},
-			want: testObj{
-				Foo: "foo",
-				Bar: 15,
-				Baz: &testObj{Foo: "nestfoo", Bar: 16, Baz: nil},
-			},
+			want: testObj{},
 		}, {
 			name:      "file_missing",
 			path:      "data.json",
@@ -77,11 +75,12 @@ func TestLoadJSONFile(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			base := t.TempDir()
 			path := filepath.Join(base, tc.path)
-			populateFiles(base, tc.fs, t)
+			populateFiles(t, base, tc.fs)
 			var got testObj
 
 			if diff := testutil.DiffErrString(LoadJSONFile(path, &got), tc.wantError); diff != "" {
@@ -95,35 +94,77 @@ func TestLoadJSONFile(t *testing.T) {
 	}
 }
 
-//
-//func TestStoreJSONFile(t *testing.T) {
-//	t.Parallel()
-//	type args[T any] struct {
-//		path string
-//		data T
-//	}
-//	type testCase[T any] struct {
-//		name    string
-//		args    args[T]
-//		wantErr bool
-//	}
-//	tests := []testCase[ /* TODO: Insert concrete types here */ ]{
-//		// TODO: Add test cases.
-//	}
-//	for _, tc := range tests {
-//		t.Run(tc.name, func(t *testing.T) {
-//			t.Parallel()
-//			if err := StoreJSONFile(tc.args.path, tc.args.data); (err != nil) != tc.wantErr {
-//				t.Errorf("StoreJSONFile() error = %v, wantErr %v", err, tc.wantErr)
-//			}
-//		})
-//	}
-//}
+func TestStoreJSONFile(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name      string
+		path      string
+		data      testObj
+		fs        map[string]string
+		wantFS    map[string]string
+		wantError string
+	}{
+		{
+			name: "happy_path_overwrite",
+			path: "data.json",
+			data: testObj{
+				Foo: "bar",
+				Bar: 1,
+				Baz: nil,
+			},
+			fs: map[string]string{"data.json": toJSON(testObj{
+				Foo: "foo",
+				Bar: 15,
+				Baz: &testObj{Foo: "nestfoo", Bar: 16, Baz: nil},
+			}, t),
+			},
+			wantFS: map[string]string{"data.json": toJSON(testObj{
+				Foo: "bar",
+				Bar: 1,
+				Baz: nil,
+			}, t),
+			},
+		},
+		{
+			name: "happy_path_create_tree",
+			path: "foo/bar/data.json",
+			data: testObj{
+				Foo: "bar",
+				Bar: 1,
+				Baz: nil,
+			},
+			fs: map[string]string{},
+			wantFS: map[string]string{"foo/bar/data.json": toJSON(testObj{
+				Foo: "bar",
+				Bar: 1,
+				Baz: nil,
+			}, t),
+			},
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			base := t.TempDir()
+			path := filepath.Join(base, tc.path)
+			populateFiles(t, base, tc.fs)
 
-func populateFiles(base string, nameContents map[string]string, t *testing.T) {
+			if diff := testutil.DiffErrString(StoreJSONFile(path, &tc.data), tc.wantError); diff != "" {
+				t.Errorf("unexpected err: %s", diff)
+			}
+
+			if diff := cmp.Diff(loadDirContents(t, base), tc.wantFS); diff != "" {
+				t.Errorf("got unexpected file system state:\n%s", diff)
+			}
+		})
+	}
+}
+
+func populateFiles(t *testing.T, base string, nameContents map[string]string) {
 	t.Helper()
 	for name, contents := range nameContents {
-		if err := os.WriteFile(filepath.Join(base, name), []byte(contents), 0777); err != nil {
+		if err := os.WriteFile(filepath.Join(base, filepath.FromSlash(name)), []byte(contents), 0777); err != nil {
 			t.Fatalf("Could not write file %v: %v", name, err)
 		}
 	}
@@ -137,4 +178,39 @@ func toJSON(data any, t *testing.T) string {
 		t.Fatalf("could not encode json: %v", err)
 	}
 	return buf.String()
+}
+
+// loadDirContents reads all the files recursively under "dir", returning their contents as a
+// map[filename]->string. Returns nil if dir doesn't exist. Keys use slash separators, not
+// native.
+func loadDirContents(t *testing.T, dir string) map[string]string {
+	t.Helper()
+
+	if _, err := os.Stat(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	out := map[string]string{}
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("ReadFile(): %w", err)
+		}
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return fmt.Errorf("Rel(): %w", err)
+		}
+		out[filepath.ToSlash(rel)] = string(contents)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("WalkDir(): %v", err)
+	}
+	return out
 }

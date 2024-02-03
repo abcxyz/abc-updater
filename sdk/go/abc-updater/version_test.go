@@ -21,8 +21,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sethvargo/go-envconfig"
 
@@ -32,12 +34,14 @@ import (
 func TestCheckAppVersion(t *testing.T) {
 	t.Parallel()
 
-	sampleAppResponse, err := json.Marshal(AppResponse{
+	testAppResponse := AppResponse{
 		AppID:          "sample_app_1",
 		AppName:        "Sample App 1",
 		AppRepoURL:     "https://github.com/abcxyz/sample_app_1",
 		CurrentVersion: "1.0.0",
-	})
+	}
+
+	sampleAppResponse, err := json.Marshal(testAppResponse)
 	if err != nil {
 		t.Errorf("failed to encode json %v", err)
 	}
@@ -64,6 +68,7 @@ func TestCheckAppVersion(t *testing.T) {
 		env     map[string]string
 		want    string
 		wantErr string
+		cached  *LocalVersionData
 	}{
 		{
 			name:    "outdated_version",
@@ -85,6 +90,35 @@ To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS=
 				"ABC_UPDATER_URL": ts.URL,
 			},
 			want: "",
+		},
+		{
+			name:    "outdated_version_but_cached_check",
+			appID:   "sample_app_1",
+			version: "0.0.1",
+			env: map[string]string{
+				"ABC_UPDATER_URL": ts.URL,
+			},
+			want: "",
+			cached: &LocalVersionData{
+				LastCheckTimestamp: time.Now().Unix(),
+				AppResponse:        testAppResponse,
+			},
+		},
+		{
+			name:    "outdated_version_cached_check_expired",
+			appID:   "sample_app_1",
+			version: "0.0.1",
+			env: map[string]string{
+				"ABC_UPDATER_URL": ts.URL,
+			},
+			want: `A new version of Sample App 1 is available! Your current version is 0.0.1. Version 1.0.0 is available at https://github.com/abcxyz/sample_app_1.
+
+To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0". To disable all version notifications, set SAMPLE_APP_1_IGNORE_VERSIONS="all".
+`,
+			cached: &LocalVersionData{
+				LastCheckTimestamp: time.Now().Add(-25 * time.Hour).Unix(),
+				AppResponse:        testAppResponse,
+			},
 		},
 		{
 			name:    "invalid_app_id",
@@ -147,12 +181,21 @@ To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS=
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			cacheFile := filepath.Join(t.TempDir(), "data.json")
+
 			var b bytes.Buffer
 			params := &CheckVersionParams{
-				AppID:    tc.appID,
-				Version:  tc.version,
-				Writer:   &b,
-				Lookuper: envconfig.MapLookuper(tc.env),
+				AppID:             tc.appID,
+				Version:           tc.version,
+				Writer:            &b,
+				Lookuper:          envconfig.MapLookuper(tc.env),
+				CacheFileOverride: cacheFile,
+			}
+
+			if tc.cached != nil {
+				if err := params.setLocalCachedData(tc.cached); err != nil {
+					t.Errorf("unexpected error setting up test cache file: %v", err)
+				}
 			}
 
 			err := CheckAppVersion(context.Background(), params)
