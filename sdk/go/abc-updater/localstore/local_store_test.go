@@ -47,7 +47,7 @@ func TestLoadJSONFile(t *testing.T) {
 			name: "happy_path",
 			path: "data.json",
 			fs: map[string]string{
-				"data.json": toJSON(t, testObj{
+				"data.json": testToJSON(t, testObj{
 					Foo: "foo",
 					Bar: 15,
 					Baz: &testObj{Foo: "nestfoo", Bar: 16, Baz: nil},
@@ -84,7 +84,7 @@ func TestLoadJSONFile(t *testing.T) {
 			t.Parallel()
 			base := t.TempDir()
 			path := filepath.Join(base, tc.path)
-			populateFiles(t, base, tc.fs)
+			testPopulateFiles(t, base, tc.fs)
 			var got testObj
 
 			if diff := testutil.DiffErrString(LoadJSONFile(path, &got), tc.wantError); diff != "" {
@@ -117,14 +117,14 @@ func TestStoreJSONFile(t *testing.T) {
 				Baz: nil,
 			},
 			fs: map[string]string{
-				"data.json": toJSON(t, testObj{
+				"data.json": testToJSON(t, testObj{
 					Foo: "foo",
 					Bar: 15,
 					Baz: &testObj{Foo: "nestfoo", Bar: 16, Baz: nil},
 				}),
 			},
 			wantFS: map[string]string{
-				"data.json": toJSON(t, testObj{
+				"data.json": testToJSON(t, testObj{
 					Foo: "bar",
 					Bar: 1,
 					Baz: nil,
@@ -141,7 +141,7 @@ func TestStoreJSONFile(t *testing.T) {
 			},
 			fs: map[string]string{},
 			wantFS: map[string]string{
-				"foo/bar/data.json": toJSON(t, testObj{
+				"foo/bar/data.json": testToJSON(t, testObj{
 					Foo: "bar",
 					Bar: 1,
 					Baz: nil,
@@ -155,7 +155,7 @@ func TestStoreJSONFile(t *testing.T) {
 			t.Parallel()
 			base := t.TempDir()
 			path := filepath.Join(base, tc.path)
-			populateFiles(t, base, tc.fs)
+			testPopulateFiles(t, base, tc.fs)
 
 			if diff := testutil.DiffErrString(StoreJSONFile(path, &tc.data), tc.wantError); diff != "" {
 				t.Errorf("unexpected err: %s", diff)
@@ -168,7 +168,7 @@ func TestStoreJSONFile(t *testing.T) {
 	}
 }
 
-func populateFiles(t *testing.T, base string, nameContents map[string]string) {
+func testPopulateFiles(t *testing.T, base string, nameContents map[string]string) {
 	t.Helper()
 	for name, contents := range nameContents {
 		//nolint:gosec // if you look at os.Create() 666 is the default. User's umask may further restrict permissions.
@@ -178,7 +178,7 @@ func populateFiles(t *testing.T, base string, nameContents map[string]string) {
 	}
 }
 
-func toJSON(t *testing.T, data any) string {
+func testToJSON(t *testing.T, data any) string {
 	t.Helper()
 	buf := bytes.Buffer{}
 	encoder := json.NewEncoder(&buf)

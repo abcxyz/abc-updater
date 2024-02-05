@@ -78,9 +78,9 @@ type LocalVersionData struct {
 // versionUpdateDetails is used for filling outputTemplate.
 type versionUpdateDetails struct {
 	AppName        string
+	AppRepoURL     string
 	CheckVersion   string
 	CurrentVersion string
-	AppRepoURL     string
 	OptOutEnvVar   string
 }
 
