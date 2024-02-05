@@ -180,7 +180,7 @@ func testPopulateFiles(t *testing.T, base string, nameContents map[string]string
 
 func testToJSON(t *testing.T, data any) string {
 	t.Helper()
-	buf := bytes.Buffer{}
+	var buf bytes.Buffer
 	encoder := json.NewEncoder(&buf)
 	if err := encoder.Encode(data); err != nil {
 		t.Fatalf("could not encode json: %v", err)
