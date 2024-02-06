@@ -22,11 +22,14 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"text/template"
 	"time"
 
 	"github.com/hashicorp/go-version"
 	"github.com/sethvargo/go-envconfig"
+
+	"github.com/abcxyz/abc-updater/sdk/go/abc-updater/localstore"
 )
 
 // CheckVersionParams are the parameters for checking for application updates.
@@ -43,6 +46,10 @@ type CheckVersionParams struct {
 
 	// An optional Lookuper to load envconfig structs. Will default to os environment variables.
 	Lookuper envconfig.Lookuper
+
+	// Optional override for cached file location. Mostly intended for testing.
+	// If empty uses default location.
+	CacheFileOverride string
 }
 
 // AppResponse is the response object for an app version request.
@@ -56,25 +63,72 @@ type AppResponse struct {
 
 type config struct {
 	ServerURL      string        `env:"ABC_UPDATER_URL,default=https://abc-updater-autopush.tycho.joonix.net"`
-	RequestTimeout time.Duration `env:"ABC_UPDATER_TIMEOUT,default=2m"`
+	RequestTimeout time.Duration `env:"ABC_UPDATER_TIMEOUT,default=2s"`
 }
 
+// LocalVersionData defines the json file that caches version lookup data.
+// Future versions may alert users of cached version info with every invocation.
+type LocalVersionData struct {
+	// Last time version information was checked, in UTC epoch seconds.
+	LastCheckTimestamp int64 `json:"lastCheckTimestamp"`
+	// Currently unused
+	AppResponse
+}
+
+// versionUpdateDetails is used for filling outputTemplate.
 type versionUpdateDetails struct {
 	AppName        string
+	AppRepoURL     string
 	CheckVersion   string
 	CurrentVersion string
-	GitHubURL      string
 	OptOutEnvVar   string
 }
 
 const (
-	appDataURLFormat = "%s/%s/data.json"
-	outputTemplate   = `A new version of {{.AppName}} is available! Your current version is {{.CheckVersion}}. Version {{.CurrentVersion}} is available at {{.GitHubURL}}.
+	localVersionFileName = "data.json"
+	appDataURLFormat     = "%s/%s/data.json"
+	outputTemplate       = `A new version of {{.AppName}} is available! Your current version is {{.CheckVersion}}. Version {{.CurrentVersion}} is available at {{.AppRepoURL}}.
 
 To disable notifications for this new version, set {{.OptOutEnvVar}}="{{.CurrentVersion}}". To disable all version notifications, set {{.OptOutEnvVar}}="all".
 `
 	maxErrorResponseBytes = 2048
 )
+
+func (c *CheckVersionParams) loadLocalCachedData() (*LocalVersionData, error) {
+	var path string
+	if c.CacheFileOverride != "" {
+		path = c.CacheFileOverride
+	} else {
+		dir, err := localstore.DefaultDir(c.AppID)
+		if err != nil {
+			return nil, fmt.Errorf("could not calculate cache path: %w", err)
+		}
+		path = filepath.Join(dir, localVersionFileName)
+	}
+	var cached LocalVersionData
+	err := localstore.LoadJSONFile(path, &cached)
+	if err != nil {
+		return nil, fmt.Errorf("could not load cached data: %w", err)
+	}
+	return &cached, nil
+}
+
+func (c *CheckVersionParams) setLocalCachedData(data *LocalVersionData) error {
+	var path string
+	if c.CacheFileOverride != "" {
+		path = c.CacheFileOverride
+	} else {
+		dir, err := localstore.DefaultDir(c.AppID)
+		if err != nil {
+			return fmt.Errorf("could not calculate cache path: %w", err)
+		}
+		path = filepath.Join(dir, localVersionFileName)
+	}
+	if err := localstore.StoreJSONFile(path, data); err != nil {
+		return fmt.Errorf("could not cache version: %w", err)
+	}
+	return nil
+}
 
 // CheckAppVersion checks if a newer version of an app is available. Relevant update info will be
 // written to the writer provided if applicable.
@@ -90,6 +144,16 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 	}
 
 	if optOutSettings.allVersionUpdatesIgnored() {
+		return nil
+	}
+
+	fetchNewData := true
+	cachedData, err := params.loadLocalCachedData()
+	if err == nil && cachedData != nil {
+		oneDayAgo := time.Now().Add(-24 * time.Hour)
+		fetchNewData = oneDayAgo.Unix() >= cachedData.LastCheckTimestamp
+	}
+	if !fetchNewData {
 		return nil
 	}
 
@@ -138,6 +202,12 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 		return fmt.Errorf("failed to decode response body: %w", err)
 	}
 
+	// TODO: do we want to return an err or somehow log error?
+	_ = params.setLocalCachedData(&LocalVersionData{
+		LastCheckTimestamp: time.Now().Unix(),
+		AppResponse:        result,
+	})
+
 	ignore, err := optOutSettings.isIgnored(result.CurrentVersion)
 	if err != nil {
 		return err
@@ -156,7 +226,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 			AppName:        result.AppName,
 			CheckVersion:   checkVersion.String(),
 			CurrentVersion: currentVersion.String(),
-			GitHubURL:      result.AppRepoURL,
+			AppRepoURL:     result.AppRepoURL,
 			OptOutEnvVar:   ignoreVersionsEnvVar(result.AppID),
 		})
 		if err != nil {
