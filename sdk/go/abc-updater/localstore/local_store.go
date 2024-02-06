@@ -38,7 +38,7 @@ func DefaultDir(appID string) (string, error) {
 
 // LoadJSONFile unmarshals file contents from the given file path into a generic object. data cannot be nil.
 // errors.Is(err, os.ErrNotExist) will return true if file doesn't exist.
-func LoadJSONFile[T any](path string, data T) error {
+func LoadJSONFile(path string, data any) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("failed to open json file: %w", err)
@@ -53,7 +53,7 @@ func LoadJSONFile[T any](path string, data T) error {
 
 // StoreJSONFile marshals data from the given object into file with given path. File and directory tree will be
 // created if they do not exist. data cannot be nil.
-func StoreJSONFile[T any](path string, data T) error {
+func StoreJSONFile(path string, data any) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create directory for json file at %s: %w", dir, err)
