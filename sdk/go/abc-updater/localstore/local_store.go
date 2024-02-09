@@ -65,7 +65,7 @@ func StoreJSONFile(path string, data any) error {
 		return fmt.Errorf("failed to encode JSON: %w", err)
 	}
 
-	if err := renameio.WriteFile(path, buf.Bytes(), 0o666); err != nil {
+	if err := renameio.WriteFile(path, buf.Bytes(), 0o644); err != nil {
 		return fmt.Errorf("failed to save json file at %s: %w", path, err)
 	}
 
