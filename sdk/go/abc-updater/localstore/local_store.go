@@ -60,8 +60,7 @@ func StoreJSONFile(path string, data any) error {
 	}
 
 	var buf bytes.Buffer
-	encoder := json.NewEncoder(&buf)
-	if err := encoder.Encode(data); err != nil {
+	if err := json.NewEncoder(&buf).Encode(data); err != nil {
 		return fmt.Errorf("failed to encode JSON: %w", err)
 	}
 
