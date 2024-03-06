@@ -16,11 +16,7 @@ concurrency:
 
 jobs:
   go_lint:
-    uses: 'abcxyz/pkg/.github/workflows/go-lint.yml@main'
-    with:
-      go_version: '1.21'
+    uses: 'abcxyz/pkg/.github/workflows/go-lint.yml@main' # ratchet:exclude
 
   go_test:
-    uses: 'abcxyz/pkg/.github/workflows/go-test.yml@main'
-    with:
-      go_version: '1.21'
+    uses: 'abcxyz/pkg/.github/workflows/go-test.yml@main' # ratchet:exclude
