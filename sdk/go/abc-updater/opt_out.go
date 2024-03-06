@@ -33,7 +33,10 @@ type optOutSettings struct {
 func loadOptOutSettings(ctx context.Context, lookuper envconfig.Lookuper, appID string) (*optOutSettings, error) {
 	l := envconfig.PrefixLookuper(envVarPrefix(appID), lookuper)
 	var c optOutSettings
-	if err := envconfig.ProcessWith(ctx, &c, l); err != nil {
+	if err := envconfig.ProcessWith(ctx, &envconfig.Config{
+		Target:   &c,
+		Lookuper: l,
+	}); err != nil {
 		// if we fail loading envconfig, default to ignore updates
 		c.ignoreAllVersions = true
 		return &c, fmt.Errorf("failed to process envconfig: %w", err)

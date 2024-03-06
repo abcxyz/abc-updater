@@ -158,7 +158,10 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 	}
 
 	var c config
-	if err := envconfig.ProcessWith(ctx, &c, lookuper); err != nil {
+	if err := envconfig.ProcessWith(ctx, &envconfig.Config{
+		Target:   &c,
+		Lookuper: lookuper,
+	}); err != nil {
 		return fmt.Errorf("failed to process envconfig: %w", err)
 	}
 
