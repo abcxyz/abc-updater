@@ -1,6 +1,7 @@
 ## Release guide for team members
 
-To build and publish a new version of `abc`, including publishing binaries for
+To build and publish a new version of `abc-updater`, including publishing
+binaries for
 all supported OSes and architectures, you push a new tag containing the version
 number, as follows.
 
@@ -20,18 +21,12 @@ number, as follows.
   major version.
 
 - Run the
-  [create tag workflow](https://github.com/abcxyz/abc/actions/workflows/create-tag.yml)
+  [create tag workflow](https://github.com/abcxyz/abc-updater/actions/workflows/create-tag.yml)
   using the version number you've decided on. It's OK to leave the "message"
   field blank.
 
 - A GitHub workflow will be triggered by the tag push and will handle
   everything. You will see the new release created within a few minutes. If not,
   look for failed
-  [Release workflow runs](https://github.com/abcxyz/abc/actions/workflows/release.yml)
+  [Release workflow runs](https://github.com/abcxyz/abc-updater/actions/workflows/release.yml)
   and look at their logs.
-
-- If the release has anything interesting in it, consider sending a message to
-  the
-  [abc-templates-announce mailing list](https://groups.google.com/g/abc-templates-announce)
-  to tell people that a new version has been released, and what's new about it
-  ([example](https://groups.google.com/g/abc-templates-announce/c/pR8Su8Toqls)).
