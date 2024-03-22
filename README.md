@@ -31,8 +31,8 @@ FOO_BAR_123_IGNORE_VERSIONS=<2.0.0
 FOO_BAR_123_IGNORE_VERSIONS=ALL
 
 # You can combine multiple constraints with commas:
-# Don't notify if new version is 1.9.3 or 2.0.4 
-FOO_BAR_123_IGNORE_VERSIONS=1.9.3,2.0.4
+# Don't notify if new version is 1.9.3 or 2.0.3 
+FOO_BAR_123_IGNORE_VERSIONS=1.9.3,2.0.3
 ```
 
 ### Limitations
