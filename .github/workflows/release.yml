@@ -121,16 +121,6 @@ jobs:
           });
           core.setOutput('created', true);
           core.info(`✅ Created release "${response.data.name}" at ${response.data.html_url}`);
-  build:
-    uses: './.github/workflows/build.yml'
-    needs:
-    - 'create-release'
-    with:
-      # version is the same as `${UNIQUE_ID}`, but there's no way to reference
-      # the "env" context from above in reusable workflows[1].
-      #
-      # [1]: https://github.com/orgs/community/discussions/26671
-      version: '${{ needs.create-release.outputs.version }}'
 
   publish-release:
     runs-on: 'ubuntu-latest'
