@@ -74,7 +74,8 @@ jobs:
             owner: context.repo.owner,
             repo: context.repo.repo,
             tag_name: `v${process.env.NEXT_VERSION}`,
-            previous_tag_name: `v${process.env.CURRENT_VERSION}`,
+            // Bootstrapping problem for first release, as 0.0.0 tag doesn't exist.
+            previous_tag_name: process.env.CURRENT_VERSION != '0.0.0' ? `v${process.env.CURRENT_VERSION}` : null,
           });
           core.setOutput('release-notes', releaseNotesResponse.data.body)
 
