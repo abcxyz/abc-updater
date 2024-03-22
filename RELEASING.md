@@ -23,3 +23,7 @@ doing so must be done by manually tagging and releasing.
 
 `VERSION` in the root of the repo is used by `draft-release` to determine the
 "current" version to increment from. It must be a valid existing tag.
+
+#### Failed Release
+If a release fails, you will need to manually decrement the `VERSION` file
+to its previous state before running `draft-release` again to create a new PR.
