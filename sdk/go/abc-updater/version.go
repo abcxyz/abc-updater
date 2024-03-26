@@ -62,7 +62,7 @@ type AppResponse struct {
 }
 
 type config struct {
-	ServerURL      string        `env:"ABC_UPDATER_URL,default=https://abc-updater-autopush.tycho.joonix.net"`
+	ServerURL      string        `env:"ABC_UPDATER_URL,default=https://abc-updater.tycho.joonix.net"`
 	RequestTimeout time.Duration `env:"ABC_UPDATER_TIMEOUT,default=2s"`
 }
 
