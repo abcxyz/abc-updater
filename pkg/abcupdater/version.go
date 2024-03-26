@@ -29,7 +29,7 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/sethvargo/go-envconfig"
 
-	"github.com/abcxyz/abc-updater/sdk/go/abc-updater/localstore"
+	"github.com/abcxyz/abc-updater/pkg/abcupdater/localstore"
 )
 
 // CheckVersionParams are the parameters for checking for application updates.
