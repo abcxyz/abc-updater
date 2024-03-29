@@ -41,9 +41,6 @@ type CheckVersionParams struct {
 	// Should be of form vMAJOR[.MINOR[.PATCH[-PRERELEASE][+BUILD]]] (e.g., v1.0.1)
 	Version string
 
-	// The writer where the update info will be written to.
-	Writer io.Writer
-
 	// An optional Lookuper to load envconfig structs. Will default to os environment variables.
 	Lookuper envconfig.Lookuper
 
@@ -130,9 +127,9 @@ func (c *CheckVersionParams) setLocalCachedData(data *LocalVersionData) error {
 	return nil
 }
 
-// CheckAppVersion checks if a newer version of an app is available. Relevant update info will be
-// written to the writer provided if applicable.
-func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
+// CheckAppVersion checks if a newer version of an app is available. Any relevant update info will be
+// returned as a string.
+func CheckAppVersion(ctx context.Context, params *CheckVersionParams) (string, error) {
 	lookuper := params.Lookuper
 	if lookuper == nil {
 		lookuper = envconfig.OsLookuper()
@@ -140,11 +137,11 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 
 	optOutSettings, err := loadOptOutSettings(ctx, lookuper, params.AppID)
 	if err != nil {
-		return fmt.Errorf("failed to load opt out settings: %w", err)
+		return "", fmt.Errorf("failed to load opt out settings: %w", err)
 	}
 
 	if optOutSettings.allVersionUpdatesIgnored() {
-		return nil
+		return "", nil
 	}
 
 	fetchNewData := true
@@ -154,7 +151,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 		fetchNewData = oneDayAgo.Unix() >= cachedData.LastCheckTimestamp
 	}
 	if !fetchNewData {
-		return nil
+		return "", nil
 	}
 
 	var c config
@@ -162,18 +159,18 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 		Target:   &c,
 		Lookuper: lookuper,
 	}); err != nil {
-		return fmt.Errorf("failed to process envconfig: %w", err)
+		return "", fmt.Errorf("failed to process envconfig: %w", err)
 	}
 
 	// Use ParseRequestURI over Parse because Parse validation is more loose and will accept
 	// things such as relative paths without a host.
 	if _, err := url.ParseRequestURI(c.ServerURL); err != nil {
-		return fmt.Errorf("failed to parse server url: %w", err)
+		return "", fmt.Errorf("failed to parse server url: %w", err)
 	}
 
 	checkVersion, err := version.NewVersion(params.Version)
 	if err != nil {
-		return fmt.Errorf("failed to parse check version %q: %w", params.Version, err)
+		return "", fmt.Errorf("failed to parse check version %q: %w", params.Version, err)
 	}
 
 	client := &http.Client{
@@ -182,27 +179,27 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf(appDataURLFormat, c.ServerURL, params.AppID), nil)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to make request: %w", err)
+		return "", fmt.Errorf("failed to make request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		b, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorResponseBytes))
 		if err != nil {
-			return fmt.Errorf("unable to read response body")
+			return "", fmt.Errorf("unable to read response body")
 		}
 
-		return fmt.Errorf("not a 200 response: %s", string(b))
+		return "", fmt.Errorf("not a 200 response: %s", string(b))
 	}
 
 	var result AppResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to decode response body: %w", err)
+		return "", fmt.Errorf("failed to decode response body: %w", err)
 	}
 
 	// TODO: do we want to return an err or somehow log error?
@@ -213,15 +210,15 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 
 	ignore, err := optOutSettings.isIgnored(result.CurrentVersion)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if ignore {
-		return nil
+		return "", nil
 	}
 
 	currentVersion, err := version.NewVersion(result.CurrentVersion)
 	if err != nil {
-		return fmt.Errorf("failed to parse current version %q: %w", params.Version, err)
+		return "", fmt.Errorf("failed to parse current version %q: %w", params.Version, err)
 	}
 
 	if checkVersion.LessThan(currentVersion) {
@@ -233,27 +230,25 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) error {
 			OptOutEnvVar:   ignoreVersionsEnvVar(result.AppID),
 		})
 		if err != nil {
-			return fmt.Errorf("failed to generate version check output: %w", err)
+			return "", fmt.Errorf("failed to generate version check output: %w", err)
 		}
-		if _, err := params.Writer.Write(output); err != nil {
-			return fmt.Errorf("failed to write output: %w", err)
-		}
+		return output, nil
 	}
 
-	return nil
+	return "", nil
 }
 
-func updateVersionOutput(updateDetails *versionUpdateDetails) ([]byte, error) {
+func updateVersionOutput(updateDetails *versionUpdateDetails) (string, error) {
 	tmpl, err := template.New("version_update_template").Parse(outputTemplate)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create output text template: %w", err)
+		return "", fmt.Errorf("failed to create output text template: %w", err)
 	}
 
 	var b bytes.Buffer
 	err = tmpl.Execute(&b, updateDetails)
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute template: %w", err)
+		return "", fmt.Errorf("failed to execute template: %w", err)
 	}
 
-	return b.Bytes(), nil
+	return b.String(), nil
 }

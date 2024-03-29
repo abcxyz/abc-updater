@@ -15,7 +15,6 @@
 package abcupdater
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -183,11 +182,9 @@ To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS=
 
 			cacheFile := filepath.Join(t.TempDir(), "data.json")
 
-			var b bytes.Buffer
 			params := &CheckVersionParams{
 				AppID:             tc.appID,
 				Version:           tc.version,
-				Writer:            &b,
 				Lookuper:          envconfig.MapLookuper(tc.env),
 				CacheFileOverride: cacheFile,
 			}
@@ -198,12 +195,12 @@ To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS=
 				}
 			}
 
-			err := CheckAppVersion(context.Background(), params)
+			output, err := CheckAppVersion(context.Background(), params)
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
 			}
 
-			if got, want := b.String(), tc.want; got != want {
+			if got, want := output, tc.want; got != want {
 				t.Errorf("incorrect output got=%s, want=%s", got, want)
 			}
 		})
