@@ -27,11 +27,11 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/abcxyz/pkg/logging"
 	"github.com/hashicorp/go-version"
 	"github.com/sethvargo/go-envconfig"
 
 	"github.com/abcxyz/abc-updater/pkg/abcupdater/localstore"
+	"github.com/abcxyz/pkg/logging"
 )
 
 // CheckVersionParams are the parameters for checking for application updates.
