@@ -219,7 +219,7 @@ func Test_asyncFunctionCall(t *testing.T) {
 		{
 			name:  "happy_path",
 			input: func() (string, error) { return "done", nil },
-			want:  "done",
+			want:  "done\n",
 		},
 		{
 			name:  "error_path_still_returns",
