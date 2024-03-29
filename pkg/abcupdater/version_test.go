@@ -236,6 +236,7 @@ func Test_asyncFunctionCall(t *testing.T) {
 		// how to make it not leak into rest of test cases
 	}
 	for _, tc := range cases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			outBuf := bytes.Buffer{}
