@@ -22,10 +22,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"text/template"
 	"time"
 
+	"github.com/abcxyz/pkg/logging"
 	"github.com/hashicorp/go-version"
 	"github.com/sethvargo/go-envconfig"
 
@@ -127,9 +129,53 @@ func (c *CheckVersionParams) setLocalCachedData(data *LocalVersionData) error {
 	return nil
 }
 
-// CheckAppVersion checks if a newer version of an app is available. Any relevant update info will be
+// CheckAppVersion calls CheckAppVersionSync in a go routine. It returns a closure
+// to be run after program logic which will block until a response is returned
+// or a timeout is hit. Results will be printed to stderr.
+func CheckAppVersion(ctx context.Context, params *CheckVersionParams) func() {
+	return asyncFunctionCall(ctx, func() (string, error) {
+		return CheckAppVersionSync(ctx, params)
+	},
+		os.Stderr)
+}
+
+// asyncFunctionCall handles the async part of CheckAppVersion, but accepts
+// a function and writer as an argument to allow for testability.
+func asyncFunctionCall(ctx context.Context, funcToCall func() (string, error), out io.Writer) func() {
+	updatesCh := make(chan string, 1)
+
+	go func() {
+		defer close(updatesCh)
+		message, err := funcToCall()
+		if err != nil {
+			logging.FromContext(ctx).WarnContext(ctx, "failed to check for new versions",
+				"error", err)
+		}
+		updatesCh <- message
+	}()
+
+	return func() {
+		select {
+		case <-ctx.Done():
+			// Context was cancelled
+		case msg := <-updatesCh:
+			if len(msg) > 0 {
+				fmt.Fprintf(out, "%s\n", msg)
+			}
+		case <-time.After(time.Second):
+			// Give up after some time. This is how long to wait after termination has
+			// finished. The command has most likely be running for a few seconds, and
+			// we don't want to block the control flow for an exceedingly long time.
+			//
+			// This technically leaks both the timer and the channel, but we're about
+			// to terminate, so the memory will free anyway.
+		}
+	}
+}
+
+// CheckAppVersionSync checks if a newer version of an app is available. Any relevant update info will be
 // returned as a string.
-func CheckAppVersion(ctx context.Context, params *CheckVersionParams) (string, error) {
+func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (string, error) {
 	lookuper := params.Lookuper
 	if lookuper == nil {
 		lookuper = envconfig.OsLookuper()

@@ -15,6 +15,7 @@
 package abcupdater
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -30,7 +31,7 @@ import (
 	"github.com/abcxyz/pkg/testutil"
 )
 
-func TestCheckAppVersion(t *testing.T) {
+func TestCheckAppVersionSync(t *testing.T) {
 	t.Parallel()
 
 	testAppResponse := AppResponse{
@@ -195,13 +196,53 @@ To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS=
 				}
 			}
 
-			output, err := CheckAppVersion(context.Background(), params)
+			output, err := CheckAppVersionSync(context.Background(), params)
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
 			}
 
 			if got, want := output, tc.want; got != want {
 				t.Errorf("incorrect output got=%s, want=%s", got, want)
+			}
+		})
+	}
+}
+
+// Note: These tests rely on timing and could be flaky if breakpoints are used.
+func Test_asyncFunctionCall(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		input func() (string, error)
+		want  string
+	}{
+		{
+			name:  "happy_path",
+			input: func() (string, error) { return "done", nil },
+			want:  "done",
+		},
+		{
+			name:  "error_path_still_returns",
+			input: func() (string, error) { return "", fmt.Errorf("failed") },
+			want:  "",
+		},
+		{
+			// This test will take a long time due to forcing timeout.
+			name:  "timeout_gets_applied",
+			input: func() (string, error) { time.Sleep(9999 * time.Hour); return "should_not_execute", nil },
+			want:  "",
+		},
+		// TODO: would like a clean way to test the canceled context case, not sure
+		// how to make it not leak into rest of test cases
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			outBuf := bytes.Buffer{}
+			resultFunc := asyncFunctionCall(context.Background(), tc.input, &outBuf)
+			resultFunc()
+			if got := outBuf.String(); got != tc.want {
+				t.Errorf("incorrect output got=%s, want=%s", got, tc.want)
 			}
 		})
 	}
