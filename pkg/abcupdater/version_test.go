@@ -31,7 +31,7 @@ import (
 	"github.com/abcxyz/pkg/testutil"
 )
 
-// Instrumented io.Writer
+// Instrumented io.Writer.
 type testWriter struct {
 	Buf    bytes.Buffer
 	Writes int64

@@ -96,7 +96,7 @@ To disable notifications for this new version, set {{.OptOutEnvVar}}="{{.Current
 // to be run after program logic which will block until a response is returned
 // or a timeout is hit. If there is any output, out() will be run during the
 // returned closure, for the consumer to print to user.
-// Example out(): `func(s string) {fmt.Fprintf(os.Stderr, "%s\n", s)}`
+// Example out(): `func(s string) {fmt.Fprintf(os.Stderr, "%s\n", s)}.`
 func CheckAppVersion(ctx context.Context, params *CheckVersionParams, out func(string)) (func(), error) {
 	lookuper := params.Lookuper
 	if lookuper == nil {
