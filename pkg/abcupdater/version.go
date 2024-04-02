@@ -125,7 +125,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 
 	optOutSettings, err := loadOptOutSettings(ctx, lookuper, params.AppID)
 	if err != nil {
-		return "", fmt.Errorf("failed to load opt out sego ttings: %w", err)
+		return "", fmt.Errorf("failed to load opt out setings: %w", err)
 	}
 
 	if optOutSettings.allVersionUpdatesIgnored() {
@@ -133,7 +133,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 	}
 
 	fetchNewData := true
-	cachedData, err := params.loadLocalCachedData()
+	cachedData, err := loadLocalCachedData(params)
 	if err == nil && cachedData != nil {
 		oneDayAgo := time.Now().Add(-24 * time.Hour)
 		fetchNewData = oneDayAgo.Unix() >= cachedData.LastCheckTimestamp
@@ -190,7 +190,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 		return "", fmt.Errorf("failed to decode response body: %w", err)
 	}
 
-	_ = params.setLocalCachedData(&LocalVersionData{
+	_ = setLocalCachedData(params, &LocalVersionData{
 		LastCheckTimestamp: time.Now().Unix(),
 		AppResponse:        result,
 	})
@@ -274,11 +274,9 @@ func updateVersionOutput(updateDetails *versionUpdateDetails) (string, error) {
 	return b.String(), nil
 }
 
-func (c *CheckVersionParams) loadLocalCachedData() (*LocalVersionData, error) {
-	var path string
-	if c.CacheFileOverride != "" {
-		path = c.CacheFileOverride
-	} else {
+func loadLocalCachedData(c *CheckVersionParams) (*LocalVersionData, error) {
+	path := c.CacheFileOverride
+	if path == "" {
 		dir, err := localstore.DefaultDir(c.AppID)
 		if err != nil {
 			return nil, fmt.Errorf("could not calculate cache path: %w", err)
@@ -293,11 +291,9 @@ func (c *CheckVersionParams) loadLocalCachedData() (*LocalVersionData, error) {
 	return &cached, nil
 }
 
-func (c *CheckVersionParams) setLocalCachedData(data *LocalVersionData) error {
-	var path string
-	if c.CacheFileOverride != "" {
-		path = c.CacheFileOverride
-	} else {
+func setLocalCachedData(c *CheckVersionParams, data *LocalVersionData) error {
+	path := c.CacheFileOverride
+	if path == "" {
 		dir, err := localstore.DefaultDir(c.AppID)
 		if err != nil {
 			return fmt.Errorf("could not calculate cache path: %w", err)
