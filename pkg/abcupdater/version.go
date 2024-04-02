@@ -22,7 +22,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"text/template"
 	"time"
@@ -93,84 +92,27 @@ To disable notifications for this new version, set {{.OptOutEnvVar}}="{{.Current
 	maxErrorResponseBytes = 2048
 )
 
-func (c *CheckVersionParams) loadLocalCachedData() (*LocalVersionData, error) {
-	var path string
-	if c.CacheFileOverride != "" {
-		path = c.CacheFileOverride
-	} else {
-		dir, err := localstore.DefaultDir(c.AppID)
-		if err != nil {
-			return nil, fmt.Errorf("could not calculate cache path: %w", err)
-		}
-		path = filepath.Join(dir, localVersionFileName)
-	}
-	var cached LocalVersionData
-	err := localstore.LoadJSONFile(path, &cached)
-	if err != nil {
-		return nil, fmt.Errorf("could not load cached data: %w", err)
-	}
-	return &cached, nil
-}
-
-func (c *CheckVersionParams) setLocalCachedData(data *LocalVersionData) error {
-	var path string
-	if c.CacheFileOverride != "" {
-		path = c.CacheFileOverride
-	} else {
-		dir, err := localstore.DefaultDir(c.AppID)
-		if err != nil {
-			return fmt.Errorf("could not calculate cache path: %w", err)
-		}
-		path = filepath.Join(dir, localVersionFileName)
-	}
-	if err := localstore.StoreJSONFile(path, data); err != nil {
-		return fmt.Errorf("could not cache version: %w", err)
-	}
-	return nil
-}
-
 // CheckAppVersion calls CheckAppVersionSync in a go routine. It returns a closure
 // to be run after program logic which will block until a response is returned
-// or a timeout is hit. Results will be printed to stderr.
-func CheckAppVersion(ctx context.Context, params *CheckVersionParams) func() {
-	return asyncFunctionCall(ctx, func() (string, error) {
-		return CheckAppVersionSync(ctx, params)
-	},
-		os.Stderr)
-}
-
-// asyncFunctionCall handles the async part of CheckAppVersion, but accepts
-// a function and writer as an argument to allow for testability.
-func asyncFunctionCall(ctx context.Context, funcToCall func() (string, error), out io.Writer) func() {
-	updatesCh := make(chan string, 1)
-
-	go func() {
-		defer close(updatesCh)
-		message, err := funcToCall()
-		if err != nil {
-			logging.FromContext(ctx).WarnContext(ctx, "failed to check for new versions",
-				"error", err)
-		}
-		updatesCh <- message
-	}()
-
-	return func() {
-		select {
-		case <-ctx.Done():
-			// Context was cancelled
-		case msg := <-updatesCh:
-			if len(msg) > 0 {
-				fmt.Fprintf(out, "%s\n", msg)
-			}
-		case <-time.After(time.Second):
-			// Give up after some time. This is how long to wait after termination has
-			// finished. The command has most likely be running for a few seconds, and
-			// we don't want to block the control flow for an exceedingly long time.
-			//
-			// This technically leaks both the timer and the channel, but we're about
-			// to terminate, so the memory will free anyway.
-		}
+// or a timeout is hit. If there is any output, out() will be run during the
+// returned closure, for the consumer to print to user.
+// Example out(): `func(s string) {fmt.Fprintf(os.Stderr, "%s\n", s)}`
+func CheckAppVersion(ctx context.Context, params *CheckVersionParams, out func(string)) (func(), error) {
+	lookuper := params.Lookuper
+	if lookuper == nil {
+		lookuper = envconfig.OsLookuper()
 	}
+	var c config
+	if err := envconfig.ProcessWith(ctx, &envconfig.Config{
+		Target:   &c,
+		Lookuper: lookuper,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to process envconfig: %w", err)
+	}
+	// Add 100ms to the timeout configured to HTTP call for time to wait on goroutine.
+	return asyncFunctionCall(ctx, c.RequestTimeout+100*time.Millisecond, func() (string, error) {
+		return CheckAppVersionSync(ctx, params)
+	}, out), nil
 }
 
 // CheckAppVersionSync checks if a newer version of an app is available. Any relevant update info will be
@@ -183,7 +125,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 
 	optOutSettings, err := loadOptOutSettings(ctx, lookuper, params.AppID)
 	if err != nil {
-		return "", fmt.Errorf("failed to load opt out settings: %w", err)
+		return "", fmt.Errorf("failed to load opt out sego ttings: %w", err)
 	}
 
 	if optOutSettings.allVersionUpdatesIgnored() {
@@ -248,7 +190,6 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 		return "", fmt.Errorf("failed to decode response body: %w", err)
 	}
 
-	// TODO: do we want to return an err or somehow log error?
 	_ = params.setLocalCachedData(&LocalVersionData{
 		LastCheckTimestamp: time.Now().Unix(),
 		AppResponse:        result,
@@ -284,6 +225,40 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 	return "", nil
 }
 
+// asyncFunctionCall handles the async part of CheckAppVersion, but accepts
+// a function other than CheckAppVersionSync for testing.
+func asyncFunctionCall(ctx context.Context, timeout time.Duration, funcToCall func() (string, error), outFunc func(string)) func() {
+	updatesCh := make(chan string, 1)
+
+	go func() {
+		defer close(updatesCh)
+		message, err := funcToCall()
+		if err != nil {
+			logging.FromContext(ctx).WarnContext(ctx, "failed to check for new versions",
+				"error", err)
+		}
+		updatesCh <- message
+	}()
+
+	return func() {
+		select {
+		case <-ctx.Done():
+			// Context was cancelled
+		case msg := <-updatesCh:
+			if len(msg) > 0 {
+				outFunc(msg)
+			}
+		case <-time.After(timeout):
+			// Give up after some time. This is how long to wait after termination has
+			// finished. The command has most likely be running for a few seconds, and
+			// we don't want to block the control flow for an exceedingly long time.
+			//
+			// This technically leaks both the timer and the channel, but we're about
+			// to terminate, so the memory will free anyway.
+		}
+	}
+}
+
 func updateVersionOutput(updateDetails *versionUpdateDetails) (string, error) {
 	tmpl, err := template.New("version_update_template").Parse(outputTemplate)
 	if err != nil {
@@ -297,4 +272,40 @@ func updateVersionOutput(updateDetails *versionUpdateDetails) (string, error) {
 	}
 
 	return b.String(), nil
+}
+
+func (c *CheckVersionParams) loadLocalCachedData() (*LocalVersionData, error) {
+	var path string
+	if c.CacheFileOverride != "" {
+		path = c.CacheFileOverride
+	} else {
+		dir, err := localstore.DefaultDir(c.AppID)
+		if err != nil {
+			return nil, fmt.Errorf("could not calculate cache path: %w", err)
+		}
+		path = filepath.Join(dir, localVersionFileName)
+	}
+	var cached LocalVersionData
+	err := localstore.LoadJSONFile(path, &cached)
+	if err != nil {
+		return nil, fmt.Errorf("could not load cached data: %w", err)
+	}
+	return &cached, nil
+}
+
+func (c *CheckVersionParams) setLocalCachedData(data *LocalVersionData) error {
+	var path string
+	if c.CacheFileOverride != "" {
+		path = c.CacheFileOverride
+	} else {
+		dir, err := localstore.DefaultDir(c.AppID)
+		if err != nil {
+			return fmt.Errorf("could not calculate cache path: %w", err)
+		}
+		path = filepath.Join(dir, localVersionFileName)
+	}
+	if err := localstore.StoreJSONFile(path, data); err != nil {
+		return fmt.Errorf("could not cache version: %w", err)
+	}
+	return nil
 }

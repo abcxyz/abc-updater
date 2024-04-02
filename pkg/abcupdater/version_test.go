@@ -31,6 +31,17 @@ import (
 	"github.com/abcxyz/pkg/testutil"
 )
 
+// Instrumented io.Writer
+type testWriter struct {
+	Buf    bytes.Buffer
+	Writes int64
+}
+
+func (w *testWriter) Write(p []byte) (n int, err error) {
+	w.Writes++
+	return w.Buf.Write(p)
+}
+
 func TestCheckAppVersionSync(t *testing.T) {
 	t.Parallel()
 
@@ -212,39 +223,104 @@ To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS=
 func Test_asyncFunctionCall(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name  string
-		input func() (string, error)
-		want  string
+		name       string
+		input      func() (string, error)
+		timeout    time.Duration
+		want       string
+		wantWrites int64
 	}{
 		{
-			name:  "happy_path",
-			input: func() (string, error) { return "done", nil },
-			want:  "done\n",
+			name:       "happy_path",
+			input:      func() (string, error) { return "done", nil },
+			want:       "done\n",
+			wantWrites: 1,
 		},
 		{
-			name:  "error_path_still_returns",
-			input: func() (string, error) { return "", fmt.Errorf("failed") },
-			want:  "",
+			name:       "error_path_still_returns",
+			input:      func() (string, error) { return "", fmt.Errorf("failed") },
+			want:       "",
+			wantWrites: 0,
 		},
 		{
-			// This test will take a long time due to forcing timeout.
-			name:  "timeout_gets_applied",
-			input: func() (string, error) { time.Sleep(9999 * time.Hour); return "should_not_execute", nil },
-			want:  "",
+			name:       "timeout_gets_applied",
+			input:      func() (string, error) { time.Sleep(999 * time.Hour); return "should_not_execute", nil },
+			timeout:    time.Millisecond,
+			want:       "",
+			wantWrites: 0,
 		},
-		// TODO: would like a clean way to test the canceled context case, not sure
-		// how to make it not leak into rest of test cases
 	}
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			outBuf := bytes.Buffer{}
-			resultFunc := asyncFunctionCall(context.Background(), tc.input, &outBuf)
+			if tc.timeout == 0 {
+				tc.timeout = time.Second
+			}
+			outBuf := testWriter{}
+			resultFunc := asyncFunctionCall(context.Background(), tc.timeout, tc.input,
+				func(s string) { fmt.Fprintf(&outBuf, "%s\n", s) })
+
 			resultFunc()
-			if got := outBuf.String(); got != tc.want {
+			if got := outBuf.Buf.String(); got != tc.want {
 				t.Errorf("incorrect output got=%s, want=%s", got, tc.want)
 			}
+			if got := outBuf.Writes; got != tc.wantWrites {
+				t.Errorf("incorrect number of interactions got=%d, want=%d", got, tc.wantWrites)
+			}
 		})
+	}
+}
+
+// This test is timing dependent, but would require to be paused for more than
+// an hour to cause flakiness.
+func Test_asyncFunctionCallContextCanceled(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	outBuf := testWriter{}
+	inputFunc := func() (string, error) { time.Sleep(1 * time.Hour); return "should_not_execute", nil }
+	resultFunc := asyncFunctionCall(ctx, 2*time.Hour, inputFunc, func(s string) { fmt.Fprintf(&outBuf, "%s\n", s) })
+
+	// Context canceled before timeouts.
+	cancel()
+
+	// Should return immediately since context was canceled.
+	resultFunc()
+	if got := outBuf.Buf.String(); got != "" {
+		t.Errorf("incorrect output got=%s, want=%s", got, "")
+	}
+	if got := outBuf.Writes; got != 0 {
+		t.Errorf("incorrect number of interactions got=%d, want=%d", got, 0)
+	}
+}
+
+func Test_asyncFunctionCallWaitForResultToWrite(t *testing.T) {
+	t.Parallel()
+	outBuf := testWriter{}
+	inputFunc := func() (string, error) {
+		return "foobar", nil
+	}
+	resultFunc := asyncFunctionCall(context.Background(), time.Hour, inputFunc, func(s string) { fmt.Fprintf(&outBuf, "%s\n", s) })
+
+	// Give goroutine a reasonable time to finish (in theory this test could
+	// give a false negative, in the unhappy case there is a race)
+	time.Sleep(50 * time.Millisecond)
+
+	// resultFunc() hasn't been run, no output should appear
+	if got := outBuf.Buf.String(); got != "" {
+		t.Errorf("incorrect output got=%s, want=%s", got, "")
+	}
+	if got := outBuf.Writes; got != 0 {
+		t.Errorf("incorrect number of interactions got=%d, want=%d", got, 0)
+	}
+
+	resultFunc()
+
+	// Now buffer should include output.
+	if got := outBuf.Buf.String(); got != "foobar\n" {
+		t.Errorf("incorrect output got=%s, want=%s", got, "foobar\n")
+	}
+	if got := outBuf.Writes; got != 1 {
+		t.Errorf("incorrect number of interactions got=%d, want=%d", got, 1)
 	}
 }
