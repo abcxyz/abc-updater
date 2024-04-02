@@ -202,7 +202,7 @@ To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS=
 			}
 
 			if tc.cached != nil {
-				if err := params.setLocalCachedData(tc.cached); err != nil {
+				if err := setLocalCachedData(params, tc.cached); err != nil {
 					t.Errorf("unexpected error setting up test cache file: %v", err)
 				}
 			}
