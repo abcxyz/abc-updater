@@ -61,7 +61,6 @@ type AppResponse struct {
 
 type config struct {
 	ServerURL      string        `env:"ABC_UPDATER_URL,default=https://abc-updater.tycho.joonix.net"`
-	RequestTimeout time.Duration `env:"ABC_UPDATER_TIMEOUT,default=2s"`
 }
 
 // LocalVersionData defines the json file that caches version lookup data.
@@ -94,10 +93,20 @@ To disable notifications for this new version, set {{.OptOutEnvVar}}="{{.Current
 
 // CheckAppVersion calls CheckAppVersionSync in a go routine. It returns a closure
 // to be run after program logic which will block until a response is returned
-// or a timeout is hit. If there is any output, out() will be run during the
-// returned closure, for the consumer to print to user.
-// Example out(): `func(s string) {fmt.Fprintf(os.Stderr, "%s\n", s)}`.
+// or provided context is canceled. If no provided deadline in context, defaults to 2 seconds.
+// If there is an update, out() will be called during the
+// returned closure.
+// If no update is available:
+// If there is an error:
+// If the context is canceled: out() is not called in the case of context cancellation.
+// Example out(): `func(s string) {fmt.Fprintln(os.Stderr, s)}`.
 func CheckAppVersion(ctx context.Context, params *CheckVersionParams, out func(string)) (func(), error) {
+	cancel := func(){}
+	if _, ok := ctx.Deadline(); !ok {
+		ctx, cancel = context.WithTimeout(ctx, time.seconds * 2)
+	}
+
+
 	lookuper := params.Lookuper
 	if lookuper == nil {
 		lookuper = envconfig.OsLookuper()
@@ -109,14 +118,14 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams, out func(s
 	}); err != nil {
 		return nil, fmt.Errorf("failed to process envconfig: %w", err)
 	}
-	// Add 100ms to the timeout configured to HTTP call for time to wait on goroutine.
-	return asyncFunctionCall(ctx, c.RequestTimeout+100*time.Millisecond, func() (string, error) {
+	return asyncFunctionCall(ctx, func() (string, error) {
+		defer cancel()
 		return CheckAppVersionSync(ctx, params)
 	}, out), nil
 }
 
 // CheckAppVersionSync checks if a newer version of an app is available. Any relevant update info will be
-// returned as a string.
+// returned as a string. Accepts a context for cancellation.
 func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (string, error) {
 	lookuper := params.Lookuper
 	if lookuper == nil {
@@ -161,9 +170,9 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 		return "", fmt.Errorf("failed to parse check version %q: %w", params.Version, err)
 	}
 
-	client := &http.Client{
-		Timeout: c.RequestTimeout,
-	}
+	// client := &http.Client{
+	// 	Timeout: c.RequestTimeout,
+	// }
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf(appDataURLFormat, c.ServerURL, params.AppID), nil)
 	if err != nil {
@@ -227,7 +236,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 
 // asyncFunctionCall handles the async part of CheckAppVersion, but accepts
 // a function other than CheckAppVersionSync for testing.
-func asyncFunctionCall(ctx context.Context, timeout time.Duration, funcToCall func() (string, error), outFunc func(string)) func() {
+func asyncFunctionCall(ctx context.Context, funcToCall func() (string, error), outFunc func(string)) func() {
 	updatesCh := make(chan string, 1)
 
 	go func() {
@@ -248,13 +257,6 @@ func asyncFunctionCall(ctx context.Context, timeout time.Duration, funcToCall fu
 			if len(msg) > 0 {
 				outFunc(msg)
 			}
-		case <-time.After(timeout):
-			// Give up after some time. This is how long to wait after termination has
-			// finished. The command has most likely be running for a few seconds, and
-			// we don't want to block the control flow for an exceedingly long time.
-			//
-			// This technically leaks both the timer and the channel, but we're about
-			// to terminate, so the memory will free anyway.
 		}
 	}
 }
