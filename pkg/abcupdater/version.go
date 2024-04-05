@@ -60,7 +60,7 @@ type AppResponse struct {
 }
 
 type config struct {
-	ServerURL      string        `env:"ABC_UPDATER_URL,default=https://abc-updater.tycho.joonix.net"`
+	ServerURL string `env:"ABC_UPDATER_URL,default=https://abc-updater.tycho.joonix.net"`
 }
 
 // LocalVersionData defines the json file that caches version lookup data.
@@ -96,16 +96,16 @@ To disable notifications for this new version, set {{.OptOutEnvVar}}="{{.Current
 // or provided context is canceled. If no provided deadline in context, defaults to 2 seconds.
 // If there is an update, out() will be called during the
 // returned closure.
+// TODO: fill out docs
 // If no update is available:
 // If there is an error:
 // If the context is canceled: out() is not called in the case of context cancellation.
 // Example out(): `func(s string) {fmt.Fprintln(os.Stderr, s)}`.
 func CheckAppVersion(ctx context.Context, params *CheckVersionParams, out func(string)) (func(), error) {
-	cancel := func(){}
+	cancel := func() {}
 	if _, ok := ctx.Deadline(); !ok {
-		ctx, cancel = context.WithTimeout(ctx, time.seconds * 2)
+		ctx, cancel = context.WithTimeout(ctx, time.Second*2)
 	}
-
 
 	lookuper := params.Lookuper
 	if lookuper == nil {
@@ -170,9 +170,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 		return "", fmt.Errorf("failed to parse check version %q: %w", params.Version, err)
 	}
 
-	// client := &http.Client{
-	// 	Timeout: c.RequestTimeout,
-	// }
+	client := &http.Client{}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf(appDataURLFormat, c.ServerURL, params.AppID), nil)
 	if err != nil {
