@@ -30,6 +30,7 @@ import (
 	"github.com/sethvargo/go-envconfig"
 
 	"github.com/abcxyz/abc-updater/pkg/abcupdater/localstore"
+	"github.com/abcxyz/pkg/logging"
 )
 
 // CheckVersionParams are the parameters for checking for application updates.
@@ -59,8 +60,7 @@ type AppResponse struct {
 }
 
 type config struct {
-	ServerURL      string        `env:"ABC_UPDATER_URL,default=https://abc-updater.tycho.joonix.net"`
-	RequestTimeout time.Duration `env:"ABC_UPDATER_TIMEOUT,default=2s"`
+	ServerURL string `env:"ABC_UPDATER_URL,default=https://abc-updater.tycho.joonix.net"`
 }
 
 // LocalVersionData defines the json file that caches version lookup data.
@@ -91,45 +91,44 @@ To disable notifications for this new version, set {{.OptOutEnvVar}}="{{.Current
 	maxErrorResponseBytes = 2048
 )
 
-func (c *CheckVersionParams) loadLocalCachedData() (*LocalVersionData, error) {
-	var path string
-	if c.CacheFileOverride != "" {
-		path = c.CacheFileOverride
-	} else {
-		dir, err := localstore.DefaultDir(c.AppID)
-		if err != nil {
-			return nil, fmt.Errorf("could not calculate cache path: %w", err)
-		}
-		path = filepath.Join(dir, localVersionFileName)
+// CheckAppVersion calls CheckAppVersionSync in a go routine. It returns a closure
+// to be run after program logic which will block until a response is returned
+// or provided context is canceled. If no provided deadline in context, defaults to 2 seconds.
+// If there is an update, out() will be called during the
+// returned closure.
+//
+// If no update is available: out() will not be called.
+// If there is an error: out() will not be called, message will be logged as WARN.
+// If the context is canceled: out() is not called.
+// If processing config fails: an error will be returned synchronously.
+// Example out(): `func(s string) {fmt.Fprintln(os.Stderr, s)}`.
+func CheckAppVersion(ctx context.Context, params *CheckVersionParams, out func(string)) (func(), error) {
+	cancel := func() {}
+	if _, ok := ctx.Deadline(); !ok {
+		ctx, cancel = context.WithTimeout(ctx, time.Second*2)
 	}
-	var cached LocalVersionData
-	err := localstore.LoadJSONFile(path, &cached)
-	if err != nil {
-		return nil, fmt.Errorf("could not load cached data: %w", err)
+
+	lookuper := params.Lookuper
+	if lookuper == nil {
+		lookuper = envconfig.OsLookuper()
 	}
-	return &cached, nil
+	var c config
+	if err := envconfig.ProcessWith(ctx, &envconfig.Config{
+		Target:   &c,
+		Lookuper: lookuper,
+	}); err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to process envconfig: %w", err)
+	}
+	return asyncFunctionCall(ctx, func() (string, error) {
+		defer cancel()
+		return CheckAppVersionSync(ctx, params)
+	}, out), nil
 }
 
-func (c *CheckVersionParams) setLocalCachedData(data *LocalVersionData) error {
-	var path string
-	if c.CacheFileOverride != "" {
-		path = c.CacheFileOverride
-	} else {
-		dir, err := localstore.DefaultDir(c.AppID)
-		if err != nil {
-			return fmt.Errorf("could not calculate cache path: %w", err)
-		}
-		path = filepath.Join(dir, localVersionFileName)
-	}
-	if err := localstore.StoreJSONFile(path, data); err != nil {
-		return fmt.Errorf("could not cache version: %w", err)
-	}
-	return nil
-}
-
-// CheckAppVersion checks if a newer version of an app is available. Any relevant update info will be
-// returned as a string.
-func CheckAppVersion(ctx context.Context, params *CheckVersionParams) (string, error) {
+// CheckAppVersionSync checks if a newer version of an app is available. Any relevant update info will be
+// returned as a string. Accepts a context for cancellation.
+func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (string, error) {
 	lookuper := params.Lookuper
 	if lookuper == nil {
 		lookuper = envconfig.OsLookuper()
@@ -145,7 +144,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) (string, e
 	}
 
 	fetchNewData := true
-	cachedData, err := params.loadLocalCachedData()
+	cachedData, err := loadLocalCachedData(params)
 	if err == nil && cachedData != nil {
 		oneDayAgo := time.Now().Add(-24 * time.Hour)
 		fetchNewData = oneDayAgo.Unix() >= cachedData.LastCheckTimestamp
@@ -173,9 +172,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) (string, e
 		return "", fmt.Errorf("failed to parse check version %q: %w", params.Version, err)
 	}
 
-	client := &http.Client{
-		Timeout: c.RequestTimeout,
-	}
+	client := &http.Client{}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf(appDataURLFormat, c.ServerURL, params.AppID), nil)
 	if err != nil {
@@ -202,8 +199,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) (string, e
 		return "", fmt.Errorf("failed to decode response body: %w", err)
 	}
 
-	// TODO: do we want to return an err or somehow log error?
-	_ = params.setLocalCachedData(&LocalVersionData{
+	_ = setLocalCachedData(params, &LocalVersionData{
 		LastCheckTimestamp: time.Now().Unix(),
 		AppResponse:        result,
 	})
@@ -238,6 +234,33 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) (string, e
 	return "", nil
 }
 
+// asyncFunctionCall handles the async part of CheckAppVersion, but accepts
+// a function other than CheckAppVersionSync for testing.
+func asyncFunctionCall(ctx context.Context, funcToCall func() (string, error), outFunc func(string)) func() {
+	updatesCh := make(chan string, 1)
+
+	go func() {
+		defer close(updatesCh)
+		message, err := funcToCall()
+		if err != nil {
+			logging.FromContext(ctx).WarnContext(ctx, "failed to check for new versions",
+				"error", err)
+		}
+		updatesCh <- message
+	}()
+
+	return func() {
+		select {
+		case <-ctx.Done():
+			// Context was cancelled
+		case msg := <-updatesCh:
+			if len(msg) > 0 {
+				outFunc(msg)
+			}
+		}
+	}
+}
+
 func updateVersionOutput(updateDetails *versionUpdateDetails) (string, error) {
 	tmpl, err := template.New("version_update_template").Parse(outputTemplate)
 	if err != nil {
@@ -251,4 +274,36 @@ func updateVersionOutput(updateDetails *versionUpdateDetails) (string, error) {
 	}
 
 	return b.String(), nil
+}
+
+func loadLocalCachedData(c *CheckVersionParams) (*LocalVersionData, error) {
+	path := c.CacheFileOverride
+	if path == "" {
+		dir, err := localstore.DefaultDir(c.AppID)
+		if err != nil {
+			return nil, fmt.Errorf("could not calculate cache path: %w", err)
+		}
+		path = filepath.Join(dir, localVersionFileName)
+	}
+	var cached LocalVersionData
+	err := localstore.LoadJSONFile(path, &cached)
+	if err != nil {
+		return nil, fmt.Errorf("could not load cached data: %w", err)
+	}
+	return &cached, nil
+}
+
+func setLocalCachedData(c *CheckVersionParams, data *LocalVersionData) error {
+	path := c.CacheFileOverride
+	if path == "" {
+		dir, err := localstore.DefaultDir(c.AppID)
+		if err != nil {
+			return fmt.Errorf("could not calculate cache path: %w", err)
+		}
+		path = filepath.Join(dir, localVersionFileName)
+	}
+	if err := localstore.StoreJSONFile(path, data); err != nil {
+		return fmt.Errorf("could not cache version: %w", err)
+	}
+	return nil
 }
