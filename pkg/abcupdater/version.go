@@ -105,7 +105,7 @@ To disable notifications for this new version, set {{.OptOutEnvVar}}="{{.Current
 func CheckAppVersion(ctx context.Context, params *CheckVersionParams, out func(string)) (func(), error) {
 	cancel := func() {}
 	if _, ok := ctx.Deadline(); !ok {
-		ctx, cancel = context.WithTimeout(ctx, time.Second*2) //nolint:lostcancel
+		ctx, cancel = context.WithTimeout(ctx, time.Second*2) //nolint:govet
 	}
 
 	lookuper := params.Lookuper
@@ -118,7 +118,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams, out func(s
 		Lookuper: lookuper,
 	}); err != nil {
 		// This leaks context. OK since only runs once, and timeout is short.
-		return nil, fmt.Errorf("failed to process envconfig: %w", err) //nolint:lostcancel
+		return nil, fmt.Errorf("failed to process envconfig: %w", err) //nolint:govet
 	}
 	return asyncFunctionCall(ctx, func() (string, error) {
 		defer cancel()
