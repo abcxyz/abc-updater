@@ -96,10 +96,11 @@ To disable notifications for this new version, set {{.OptOutEnvVar}}="{{.Current
 // or provided context is canceled. If no provided deadline in context, defaults to 2 seconds.
 // If there is an update, out() will be called during the
 // returned closure.
-// TODO: fill out docs
-// If no update is available:
-// If there is an error:
-// If the context is canceled: out() is not called in the case of context cancellation.
+//
+// If no update is available: out() will not be called.
+// If there is an error: out() will not be called, message will be logged as WARN.
+// If the context is canceled: out() is not called.
+// If processing config fails: an error will be returned synchronously.
 // Example out(): `func(s string) {fmt.Fprintln(os.Stderr, s)}`.
 func CheckAppVersion(ctx context.Context, params *CheckVersionParams, out func(string)) (func(), error) {
 	cancel := func() {}
