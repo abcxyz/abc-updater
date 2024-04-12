@@ -117,6 +117,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams, out func(s
 		Target:   &c,
 		Lookuper: lookuper,
 	}); err != nil {
+		// This leaks context. OK since only runs once, and timeout is short.
 		return nil, fmt.Errorf("failed to process envconfig: %w", err)
 	}
 	return asyncFunctionCall(ctx, func() (string, error) {
