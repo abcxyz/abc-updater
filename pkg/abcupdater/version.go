@@ -245,6 +245,7 @@ func asyncFunctionCall(ctx context.Context, funcToCall func() (string, error), o
 		if err != nil {
 			logging.FromContext(ctx).WarnContext(ctx, "failed to check for new versions",
 				"error", err)
+			return
 		}
 		updatesCh <- message
 	}()
@@ -253,8 +254,8 @@ func asyncFunctionCall(ctx context.Context, funcToCall func() (string, error), o
 		select {
 		case <-ctx.Done():
 			// Context was cancelled
-		case msg := <-updatesCh:
-			if len(msg) > 0 {
+		case msg, ok := <-updatesCh:
+			if ok && len(msg) > 0 {
 				outFunc(msg)
 			}
 		}
