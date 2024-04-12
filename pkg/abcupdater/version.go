@@ -100,30 +100,17 @@ To disable notifications for this new version, set {{.OptOutEnvVar}}="{{.Current
 // If no update is available: out() will not be called.
 // If there is an error: out() will not be called, message will be logged as WARN.
 // If the context is canceled: out() is not called.
-// If processing config fails: an error will be returned synchronously.
 // Example out(): `func(s string) {fmt.Fprintln(os.Stderr, s)}`.
-func CheckAppVersion(ctx context.Context, params *CheckVersionParams, out func(string)) (func(), error) {
+func CheckAppVersion(ctx context.Context, params *CheckVersionParams, out func(string)) func() {
 	cancel := func() {}
 	if _, ok := ctx.Deadline(); !ok {
 		ctx, cancel = context.WithTimeout(ctx, time.Second*2)
 	}
 
-	lookuper := params.Lookuper
-	if lookuper == nil {
-		lookuper = envconfig.OsLookuper()
-	}
-	var c config
-	if err := envconfig.ProcessWith(ctx, &envconfig.Config{
-		Target:   &c,
-		Lookuper: lookuper,
-	}); err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to process envconfig: %w", err)
-	}
 	return asyncFunctionCall(ctx, func() (string, error) {
 		defer cancel()
 		return CheckAppVersionSync(ctx, params)
-	}, out), nil
+	}, out)
 }
 
 // CheckAppVersionSync checks if a newer version of an app is available. Any relevant update info will be
