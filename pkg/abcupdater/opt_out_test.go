@@ -39,6 +39,19 @@ func TestLoadOptOutSettings(t *testing.T) {
 			appID:       "sample_app_1",
 			lookuperMap: map[string]string{},
 			want: &optOutSettings{
+				NoMetrics:         false,
+				ignoreAllVersions: false,
+				IgnoreVersions:    nil,
+			},
+		},
+		{
+			name:  "set_no_metrics",
+			appID: "sample_app_1",
+			lookuperMap: map[string]string{
+				"NO_METRICS": "true",
+			},
+			want: &optOutSettings{
+				NoMetrics:         true,
 				ignoreAllVersions: false,
 				IgnoreVersions:    nil,
 			},
@@ -50,6 +63,7 @@ func TestLoadOptOutSettings(t *testing.T) {
 				"SAMPLE_APP_1_IGNORE_VERSIONS": "all",
 			},
 			want: &optOutSettings{
+				NoMetrics:         false,
 				ignoreAllVersions: true,
 				IgnoreVersions:    []string{"all"},
 			},

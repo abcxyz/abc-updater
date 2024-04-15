@@ -25,6 +25,7 @@ import (
 )
 
 type optOutSettings struct {
+	NoMetrics         bool     `env:"NO_METRICS"`
 	IgnoreVersions    []string `env:"IGNORE_VERSIONS"`
 	ignoreAllVersions bool
 }
@@ -57,6 +58,10 @@ func envVarPrefix(appID string) string {
 
 func ignoreVersionsEnvVar(appID string) string {
 	return envVarPrefix(appID) + "IGNORE_VERSIONS"
+}
+
+func noMetricsEnvVar(appID string) string {
+	return envVarPrefix(appID) + "NO_METRICS"
 }
 
 // allVersionUpdatesIgnored returns true if all versions should be ignored.

@@ -59,7 +59,7 @@ type AppResponse struct {
 	CurrentVersion string `json:"currentVersion"`
 }
 
-type config struct {
+type versionConfig struct {
 	ServerURL string `env:"ABC_UPDATER_URL,default=https://abc-updater.tycho.joonix.net"`
 }
 
@@ -140,7 +140,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 		return "", nil
 	}
 
-	var c config
+	var c versionConfig
 	if err := envconfig.ProcessWith(ctx, &envconfig.Config{
 		Target:   &c,
 		Lookuper: lookuper,
