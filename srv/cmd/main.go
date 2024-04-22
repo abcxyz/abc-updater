@@ -19,7 +19,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
+	"github.com/abcxyz/abc-updater/srv/pkg"
 	"net/http"
 	"os"
 	"os/signal"
@@ -43,22 +43,42 @@ func handleHello(h *renderer.Renderer) http.Handler {
 	})
 }
 
+// TODO: figure out how to make modules so this doesn't get re-defined multiple places
+type SendMetricRequest struct {
+	// The ID of the application to check.
+	AppID string `json:"appID"`
+
+	// The version of the app to check for updates.
+	// Should be of form vMAJOR[.MINOR[.PATCH[-PRERELEASE][+BUILD]]] (e.g., v1.0.1)
+	AppVersion string `json:"appVersion"`
+
+	// TODO: this is a bit different from design doc, is it ok?
+	Metrics map[string]int `json:"metrics"`
+
+	// InstallID. Expected to be a hex 8-4-4-4-12 formatted v4 UUID.
+	InstallID string `json:"installId"`
+}
+
 func handleMetric(h *renderer.Renderer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logger := logging.FromContext(r.Context())
+		metric_logger := logger.WithGroup("metric")
 		logger.InfoContext(r.Context(), "handling request")
 
-		// Limit body to 1 MiB.
-		r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
-
-		// TODO: test err
+		metrics, err := pkg.DecodeRequest[SendMetricRequest](r.Context(), w, r, h)
 		if err != nil {
-			if err == io.EOF {
-
-			}
+			// Error response already handled by pkg.DecodeRequest.
+			return
 		}
 
-		h.RenderJSON(w, http.StatusOK, map[string]string{"message": "hello world"})
+		// TODO: Validate metrics & remove unknown
+
+		for name, count := range metrics.Metrics {
+			// TODO: does this leak sensitive information? Is default logger preferred.
+			metric_logger.InfoContext(r.Context(), "metric received", "appID", metrics.AppID, "appVersion", metrics.AppVersion, "installId", metrics.InstallID, "name", name, "count", count)
+		}
+
+		h.RenderJSON(w, http.StatusAccepted, map[string]string{"message": "ok"})
 	})
 }
 
@@ -82,7 +102,7 @@ func realMain(ctx context.Context) error {
 
 	httpServer := &http.Server{
 		Addr:              *port,
-		Handler:           r,
+		Handler:           mux,
 		ReadHeaderTimeout: 2 * time.Second,
 	}
 

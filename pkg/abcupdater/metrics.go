@@ -47,9 +47,8 @@ type MetricsInfo struct {
 	// The ID of the application to check.
 	AppID string
 
-	// The version of the app to check for updates.
-	// Should be of form vMAJOR[.MINOR[.PATCH[-PRERELEASE][+BUILD]]] (e.g., v1.0.1)
-	Version string
+	// The version of the app.
+	AppVersion string
 
 	// An optional Lookuper to load envconfig structs. Will default to os environment variables.
 	Lookuper envconfig.Lookuper
@@ -76,7 +75,7 @@ type SendMetricRequest struct {
 
 	// The version of the app to check for updates.
 	// Should be of form vMAJOR[.MINOR[.PATCH[-PRERELEASE][+BUILD]]] (e.g., v1.0.1)
-	Version string `json:"version"`
+	AppVersion string `json:"AppVersion"`
 
 	// TODO: this is a bit different from design doc, is it ok?
 	Metrics map[string]int `json:"metrics"`
