@@ -35,28 +35,44 @@ const defaultPort = "8080"
 
 var port = flag.String("port", defaultPort, "Specifies server port to listen on.")
 
-func handleHello(h *renderer.Renderer) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger := logging.FromContext(r.Context())
-		logger.InfoContext(r.Context(), "handling request")
-		h.RenderJSON(w, http.StatusOK, map[string]string{"message": "hello world"})
-	})
-}
-
 // TODO: figure out how to make modules so this doesn't get re-defined multiple places
 type SendMetricRequest struct {
 	// The ID of the application to check.
-	AppID string `json:"appID"`
+	AppID string `json:"appId"`
 
 	// The version of the app to check for updates.
 	// Should be of form vMAJOR[.MINOR[.PATCH[-PRERELEASE][+BUILD]]] (e.g., v1.0.1)
 	AppVersion string `json:"appVersion"`
 
 	// TODO: this is a bit different from design doc, is it ok?
-	Metrics map[string]int `json:"metrics"`
+	Metrics map[string]int64 `json:"metrics"`
 
 	// InstallID. Expected to be a hex 8-4-4-4-12 formatted v4 UUID.
 	InstallID string `json:"installId"`
+}
+
+type AppMetrics struct {
+	AppID   string
+	Allowed map[string]interface{}
+}
+
+// MetricAllowed is a helper for looking up a particular metric for an app.
+func (m *AppMetrics) MetricAllowed(metric string) bool {
+	if m != nil && m.Allowed != nil {
+		_, ok := m.Allowed[metric]
+		return ok
+	}
+	return false
+}
+
+// GetAllowedMetrics returns a struct containing metrics for a given AppID.
+// An error is returned if that AppID is not defined in the backend for metrics.
+func GetAllowedMetrics(appID string) (*AppMetrics, error) {
+	// TODO: implement me
+	if appID != "implementLater" {
+		return nil, fmt.Errorf("no metric definition found for app %s", appID)
+	}
+	return &AppMetrics{Allowed: map[string]interface{}{"todo-implement": struct{}{}}}, nil
 }
 
 func handleMetric(h *renderer.Renderer) http.Handler {
@@ -71,11 +87,19 @@ func handleMetric(h *renderer.Renderer) http.Handler {
 			return
 		}
 
-		// TODO: Validate metrics & remove unknown
+		allowedMetrics, err := GetAllowedMetrics(metrics.AppID)
+		if err != nil {
+			h.RenderJSON(w, http.StatusNotFound, err)
+			return
+		}
 
 		for name, count := range metrics.Metrics {
-			// TODO: does this leak sensitive information? Is default logger preferred.
-			metric_logger.InfoContext(r.Context(), "metric received", "appID", metrics.AppID, "appVersion", metrics.AppVersion, "installId", metrics.InstallID, "name", name, "count", count)
+			if allowedMetrics.MetricAllowed(name) {
+				// TODO: does this leak sensitive information? Is default logger preferred.
+				metric_logger.InfoContext(r.Context(), "metric received", "appID", metrics.AppID, "appVersion", metrics.AppVersion, "installId", metrics.InstallID, "name", name, "count", count)
+			} else {
+				// TODO: do we want to return a warning to client or fail silently?
+			}
 		}
 
 		h.RenderJSON(w, http.StatusAccepted, map[string]string{"message": "ok"})
@@ -97,7 +121,6 @@ func realMain(ctx context.Context) error {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/", handleHello(h))
 	mux.Handle("POST /sendMetrics", handleMetric(h))
 
 	httpServer := &http.Server{
