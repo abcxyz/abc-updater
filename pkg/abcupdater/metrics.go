@@ -149,10 +149,10 @@ func SendMetricsSync(ctx context.Context, info *MetricsInfo) error {
 
 	buf := bytes.Buffer{}
 	if err := json.NewEncoder(&buf).Encode(SendMetricRequest{
-		AppID:     info.AppID,
-		Version:   info.Version,
-		Metrics:   info.Metrics,
-		InstallID: installID,
+		AppID:      info.AppID,
+		AppVersion: info.AppVersion,
+		Metrics:    info.Metrics,
+		InstallID:  installID,
 	}); err != nil {
 		return fmt.Errorf("failed to marshal metric json: %w", err)
 	}
