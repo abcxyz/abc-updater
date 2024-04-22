@@ -51,31 +51,7 @@ type SendMetricRequest struct {
 	InstallID string `json:"installId"`
 }
 
-type AppMetrics struct {
-	AppID   string
-	Allowed map[string]interface{}
-}
-
-// MetricAllowed is a helper for looking up a particular metric for an app.
-func (m *AppMetrics) MetricAllowed(metric string) bool {
-	if m != nil && m.Allowed != nil {
-		_, ok := m.Allowed[metric]
-		return ok
-	}
-	return false
-}
-
-// GetAllowedMetrics returns a struct containing metrics for a given AppID.
-// An error is returned if that AppID is not defined in the backend for metrics.
-func GetAllowedMetrics(appID string) (*AppMetrics, error) {
-	// TODO: implement me
-	if appID != "implementLater" {
-		return nil, fmt.Errorf("no metric definition found for app %s", appID)
-	}
-	return &AppMetrics{Allowed: map[string]interface{}{"todo-implement": struct{}{}}}, nil
-}
-
-func handleMetric(h *renderer.Renderer) http.Handler {
+func handleMetric(h *renderer.Renderer, db *pkg.MetricsDB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logger := logging.FromContext(r.Context())
 		metric_logger := logger.WithGroup("metric")
@@ -87,7 +63,7 @@ func handleMetric(h *renderer.Renderer) http.Handler {
 			return
 		}
 
-		allowedMetrics, err := GetAllowedMetrics(metrics.AppID)
+		allowedMetrics, err := db.GetAllowedMetrics(metrics.AppID)
 		if err != nil {
 			h.RenderJSON(w, http.StatusNotFound, err)
 			return
@@ -120,8 +96,18 @@ func realMain(ctx context.Context) error {
 		return fmt.Errorf("failed to create renderer for main server: %w", err)
 	}
 
+	dbUpdateParams := &pkg.MetricsLoadParams{
+		ServerURL: "http://localhost:5000", // todo: load config
+		Client:    &http.Client{Timeout: 2 * time.Second},
+	}
+
+	db := &pkg.MetricsDB{}
+	if err := db.Update(ctx, dbUpdateParams); err != nil {
+		return fmt.Errorf("failed to load metrics definitions on startup: %w", err)
+	}
+
 	mux := http.NewServeMux()
-	mux.Handle("POST /sendMetrics", handleMetric(h))
+	mux.Handle("POST /sendMetrics", handleMetric(h, db))
 
 	httpServer := &http.Server{
 		Addr:              *port,
