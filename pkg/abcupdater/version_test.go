@@ -19,7 +19,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/google/go-cmp/cmp"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -27,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/sethvargo/go-envconfig"
 
 	"github.com/abcxyz/pkg/testutil"
