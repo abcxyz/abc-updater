@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/google/go-cmp/cmp"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -65,7 +66,7 @@ func TestCheckAppVersionSync(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, string(sampleAppResponse))
+		fmt.Fprintf(w, "%s\n", string(sampleAppResponse))
 	}))
 
 	t.Cleanup(func() {
@@ -88,10 +89,7 @@ func TestCheckAppVersionSync(t *testing.T) {
 			env: map[string]string{
 				"ABC_UPDATER_URL": ts.URL,
 			},
-			want: `A new version of Sample App 1 is available! Your current version is 0.0.1. Version 1.0.0 is available at https://github.com/abcxyz/sample_app_1.
-
-To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0". To disable all version notifications, set SAMPLE_APP_1_IGNORE_VERSIONS="all".
-`,
+			want: `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
 		},
 		{
 			name:    "current_version",
@@ -122,10 +120,7 @@ To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS=
 			env: map[string]string{
 				"ABC_UPDATER_URL": ts.URL,
 			},
-			want: `A new version of Sample App 1 is available! Your current version is 0.0.1. Version 1.0.0 is available at https://github.com/abcxyz/sample_app_1.
-
-To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0". To disable all version notifications, set SAMPLE_APP_1_IGNORE_VERSIONS="all".
-`,
+			want: `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
 			cached: &LocalVersionData{
 				LastCheckTimestamp: time.Now().Add(-25 * time.Hour).Unix(),
 				AppResponse:        testAppResponse,
@@ -179,10 +174,7 @@ To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS=
 				"ABC_UPDATER_URL":                    ts.URL,
 				ignoreVersionsEnvVar("sample_app_1"): "0.0.2",
 			},
-			want: `A new version of Sample App 1 is available! Your current version is 0.0.1. Version 1.0.0 is available at https://github.com/abcxyz/sample_app_1.
-
-To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0". To disable all version notifications, set SAMPLE_APP_1_IGNORE_VERSIONS="all".
-`,
+			want: `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
 		},
 	}
 
@@ -212,8 +204,8 @@ To disable notifications for this new version, set SAMPLE_APP_1_IGNORE_VERSIONS=
 				t.Error(diff)
 			}
 
-			if got, want := output, tc.want; got != want {
-				t.Errorf("incorrect output got=%s, want=%s", got, want)
+			if diff := cmp.Diff(output, tc.want); diff != "" {
+				t.Errorf("output was not as expected (-got,+want): %s", diff)
 			}
 		})
 	}
