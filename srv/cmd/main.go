@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/abcxyz/abc-updater/srv/pkg"
+	"github.com/sethvargo/go-envconfig"
 	"net/http"
 	"os"
 	"os/signal"
@@ -51,10 +52,14 @@ type SendMetricRequest struct {
 	InstallID string `json:"installId"`
 }
 
+type metricsServerConfig struct {
+	ServerURL string `env:"ABC_UPDATER_METRICS_METADATA_URL,default=https://abc-updater.tycho.joonix.net"`
+}
+
 func handleMetric(h *renderer.Renderer, db *pkg.MetricsDB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logger := logging.FromContext(r.Context())
-		metric_logger := logger.WithGroup("metric")
+		metricLogger := logger.WithGroup("metric")
 		logger.InfoContext(r.Context(), "handling request")
 
 		metrics, err := pkg.DecodeRequest[SendMetricRequest](r.Context(), w, r, h)
@@ -72,7 +77,7 @@ func handleMetric(h *renderer.Renderer, db *pkg.MetricsDB) http.Handler {
 		for name, count := range metrics.Metrics {
 			if allowedMetrics.MetricAllowed(name) {
 				// TODO: does this leak sensitive information? Is default logger preferred.
-				metric_logger.InfoContext(r.Context(), "metric received", "appID", metrics.AppID, "appVersion", metrics.AppVersion, "installId", metrics.InstallID, "name", name, "count", count)
+				metricLogger.InfoContext(r.Context(), "metric received", "appID", metrics.AppID, "appVersion", metrics.AppVersion, "installId", metrics.InstallID, "name", name, "count", count)
 			} else {
 				// TODO: do we want to return a warning to client or fail silently?
 			}
@@ -96,8 +101,16 @@ func realMain(ctx context.Context) error {
 		return fmt.Errorf("failed to create renderer for main server: %w", err)
 	}
 
+	var c metricsServerConfig
+	if err := envconfig.Process(ctx, &envconfig.Config{
+		Target:   &c,
+		Lookuper: envconfig.OsLookuper(),
+	}); err != nil {
+		return fmt.Errorf("failed to process envconfig: %w", err)
+	}
+
 	dbUpdateParams := &pkg.MetricsLoadParams{
-		ServerURL: "http://localhost:5000", // todo: load config
+		ServerURL: c.ServerURL,
 		Client:    &http.Client{Timeout: 2 * time.Second},
 	}
 
