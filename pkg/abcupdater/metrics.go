@@ -72,7 +72,7 @@ type InstallIDData struct {
 
 type SendMetricRequest struct {
 	// The ID of the application to check.
-	AppID string `json:"appID"`
+	AppID string `json:"appId"`
 
 	// The version of the app to check for updates.
 	// Should be of form vMAJOR[.MINOR[.PATCH[-PRERELEASE][+BUILD]]] (e.g., v1.0.1)
