@@ -27,7 +27,7 @@ import (
 type optOutSettings struct {
 	NoMetrics         bool     `env:"NO_METRICS"`
 	IgnoreVersions    []string `env:"IGNORE_VERSIONS"`
-	ignoreAllVersions bool
+	IgnoreAllVersions bool
 }
 
 // loadOptOutSettings will return an optOutSettings struct populated based on the lookuper provided.
@@ -39,13 +39,13 @@ func loadOptOutSettings(ctx context.Context, lookuper envconfig.Lookuper, appID 
 		Lookuper: l,
 	}); err != nil {
 		// if we fail loading envconfig, default to ignore updates
-		c.ignoreAllVersions = true
+		c.IgnoreAllVersions = true
 		return &c, fmt.Errorf("failed to process envconfig: %w", err)
 	}
 
 	for _, version := range c.IgnoreVersions {
 		if strings.ToLower(version) == "all" {
-			c.ignoreAllVersions = true
+			c.IgnoreAllVersions = true
 		}
 	}
 
@@ -60,18 +60,9 @@ func ignoreVersionsEnvVar(appID string) string {
 	return envVarPrefix(appID) + "IGNORE_VERSIONS"
 }
 
-func noMetricsEnvVar(appID string) string {
-	return envVarPrefix(appID) + "NO_METRICS"
-}
-
-// allVersionUpdatesIgnored returns true if all versions should be ignored.
-func (o *optOutSettings) allVersionUpdatesIgnored() bool {
-	return o.ignoreAllVersions
-}
-
 // isIgnored returns true if the version specified should be ignored.
 func (o *optOutSettings) isIgnored(checkVersion string) (bool, error) {
-	if o.allVersionUpdatesIgnored() {
+	if o.IgnoreAllVersions {
 		return true, nil
 	}
 

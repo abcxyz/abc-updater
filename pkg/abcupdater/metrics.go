@@ -19,24 +19,25 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/abcxyz/abc-updater/pkg/abcupdater/localstore"
-	"github.com/google/uuid"
-	"github.com/sethvargo/go-envconfig"
 	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
 	"regexp"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/sethvargo/go-envconfig"
+
+	"github.com/abcxyz/abc-updater/pkg/abcupdater/localstore"
+	"github.com/abcxyz/pkg/logging"
 )
 
 const (
 	installIDFileName = "id.json"
 )
 
-var (
-	regExUUID = regexp.MustCompile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
-)
+var regExUUID = regexp.MustCompile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 type metricsConfig struct {
 	ServerURL string `env:"ABC_UPDATER_METRICS_URL,default=https://abc-updater-metrics.tycho.joonix.net"`
@@ -85,7 +86,7 @@ type SendMetricRequest struct {
 
 // Stricter than uuid.Parse() which isn't meant for validating strings according
 // to documentation.
-func validInstallId(id string) bool {
+func validInstallID(id string) bool {
 	return regExUUID.MatchString(id)
 }
 
@@ -103,7 +104,7 @@ func SendMetricsSync(ctx context.Context, info *MetricsInfo) error {
 		return fmt.Errorf("failed to load opt out settings: %w", err)
 	}
 
-	if optOutSettings.allVersionUpdatesIgnored() {
+	if optOutSettings.NoMetrics {
 		return nil
 	}
 
@@ -119,13 +120,16 @@ func SendMetricsSync(ctx context.Context, info *MetricsInfo) error {
 	if generateNewID {
 		installUUID, err := uuid.NewRandom()
 		if err != nil {
-			return fmt.Errorf("could not generate id for metrics: %w")
+			return fmt.Errorf("could not generate id for metrics: %w", err)
 		}
 		installID = installUUID.String()
-		storeInstallID(info, &InstallIDData{
+		err = storeInstallID(info, &InstallIDData{
 			IDCreatedTimestamp: time.Now().Unix(),
 			InstallID:          installID,
 		})
+		if err != nil {
+			logging.FromContext(ctx).DebugContext(ctx, "error storing installID", "error", err.Error())
+		}
 	} else {
 		installID = storedID.InstallID
 	}
@@ -199,7 +203,7 @@ func loadInstallID(c *MetricsInfo) (*InstallIDData, error) {
 		return nil, fmt.Errorf("could not load install id: %w", err)
 	}
 	// Validate InstallID
-	if !validInstallId(stored.InstallID) {
+	if !validInstallID(stored.InstallID) {
 		return nil, fmt.Errorf("invalid install id")
 	}
 
