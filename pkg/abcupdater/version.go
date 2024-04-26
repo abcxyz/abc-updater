@@ -74,20 +74,16 @@ type LocalVersionData struct {
 
 // versionUpdateDetails is used for filling outputTemplate.
 type versionUpdateDetails struct {
-	AppName        string
-	AppRepoURL     string
-	CheckVersion   string
-	CurrentVersion string
-	OptOutEnvVar   string
+	AppName       string
+	AppRepoURL    string
+	RemoteVersion string
+	OptOutEnvVar  string
 }
 
 const (
-	localVersionFileName = "data.json"
-	appDataURLFormat     = "%s/%s/data.json"
-	outputTemplate       = `A new version of {{.AppName}} is available! Your current version is {{.CheckVersion}}. Version {{.CurrentVersion}} is available at {{.AppRepoURL}}.
-
-To disable notifications for this new version, set {{.OptOutEnvVar}}="{{.CurrentVersion}}". To disable all version notifications, set {{.OptOutEnvVar}}="all".
-`
+	localVersionFileName  = "data.json"
+	appDataURLFormat      = "%s/%s/data.json"
+	outputTemplate        = `{{.AppName}} version {{.RemoteVersion}} is available at [{{.AppRepoURL}}]. Use {{.OptOutEnvVar}}="{{.RemoteVersion}}" (or "all") to ignore.`
 	maxErrorResponseBytes = 2048
 )
 
@@ -199,18 +195,17 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 		return "", nil
 	}
 
-	currentVersion, err := version.NewVersion(result.CurrentVersion)
+	remoteVersion, err := version.NewVersion(result.CurrentVersion)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse current version %q: %w", params.Version, err)
 	}
 
-	if checkVersion.LessThan(currentVersion) {
+	if checkVersion.LessThan(remoteVersion) {
 		output, err := updateVersionOutput(&versionUpdateDetails{
-			AppName:        result.AppName,
-			CheckVersion:   checkVersion.String(),
-			CurrentVersion: currentVersion.String(),
-			AppRepoURL:     result.AppRepoURL,
-			OptOutEnvVar:   ignoreVersionsEnvVar(result.AppID),
+			AppName:       result.AppName,
+			RemoteVersion: remoteVersion.String(),
+			AppRepoURL:    result.AppRepoURL,
+			OptOutEnvVar:  ignoreVersionsEnvVar(result.AppID),
 		})
 		if err != nil {
 			return "", fmt.Errorf("failed to generate version check output: %w", err)
