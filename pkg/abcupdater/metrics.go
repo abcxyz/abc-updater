@@ -19,7 +19,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/abcxyz/pkg/logging"
 	"io"
 	"net/http"
 	"net/url"
@@ -31,6 +30,7 @@ import (
 	"github.com/sethvargo/go-envconfig"
 
 	"github.com/abcxyz/abc-updater/pkg/abcupdater/localstore"
+	"github.com/abcxyz/pkg/logging"
 )
 
 const (
