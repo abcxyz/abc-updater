@@ -40,7 +40,7 @@ func TestLoadOptOutSettings(t *testing.T) {
 			lookuperMap: map[string]string{},
 			want: &optOutSettings{
 				NoMetrics:         false,
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    nil,
 			},
 		},
@@ -52,7 +52,7 @@ func TestLoadOptOutSettings(t *testing.T) {
 			},
 			want: &optOutSettings{
 				NoMetrics:         true,
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    nil,
 			},
 		},
@@ -64,7 +64,7 @@ func TestLoadOptOutSettings(t *testing.T) {
 			},
 			want: &optOutSettings{
 				NoMetrics:         false,
-				ignoreAllVersions: true,
+				IgnoreAllVersions: true,
 				IgnoreVersions:    []string{"all"},
 			},
 		},
@@ -75,7 +75,7 @@ func TestLoadOptOutSettings(t *testing.T) {
 				"SAMPLE_APP_1_IGNORE_VERSIONS": "1.0.0",
 			},
 			want: &optOutSettings{
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    []string{"1.0.0"},
 			},
 		},
@@ -86,7 +86,7 @@ func TestLoadOptOutSettings(t *testing.T) {
 				"SAMPLE_APP_1_IGNORE_VERSIONS": "<1.0.0,2.0.0,3.0.0",
 			},
 			want: &optOutSettings{
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    []string{"<1.0.0", "2.0.0", "3.0.0"},
 			},
 		},
@@ -97,7 +97,7 @@ func TestLoadOptOutSettings(t *testing.T) {
 				"SAMPLE_APP_1_IGNORE_VERSIONS": "<1.0.0,2.0.0,3.0.0",
 			},
 			want: &optOutSettings{
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    nil,
 			},
 		},
@@ -118,8 +118,8 @@ func TestLoadOptOutSettings(t *testing.T) {
 				t.Errorf("Config unexpected diff (-want,+got):\n%s", diff)
 			}
 
-			if got, want := config.ignoreAllVersions, tc.want.ignoreAllVersions; got != want {
-				t.Errorf("incorrect ignoreAllVersions got=%t, want=%t", got, want)
+			if got, want := config.IgnoreAllVersions, tc.want.IgnoreAllVersions; got != want {
+				t.Errorf("incorrect IgnoreAllVersions got=%t, want=%t", got, want)
 			}
 		})
 	}
@@ -136,7 +136,7 @@ func TestAllVersionUpdatesIgnored(t *testing.T) {
 		{
 			name: "no_error_no_ignore_all",
 			optOutSettings: &optOutSettings{
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    nil,
 			},
 			want: false,
@@ -144,7 +144,7 @@ func TestAllVersionUpdatesIgnored(t *testing.T) {
 		{
 			name: "no_error_ignore_all",
 			optOutSettings: &optOutSettings{
-				ignoreAllVersions: true,
+				IgnoreAllVersions: true,
 				IgnoreVersions:    nil,
 			},
 			want: true,
@@ -157,7 +157,7 @@ func TestAllVersionUpdatesIgnored(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := tc.optOutSettings.allVersionUpdatesIgnored()
+			got := tc.optOutSettings.IgnoreAllVersions
 
 			if want := tc.want; got != want {
 				t.Errorf("incorrect allVersionUpdatesIgnored got=%t, want=%t", got, want)
@@ -180,7 +180,7 @@ func TestIsIgnored(t *testing.T) {
 			name:    "nothing_ignored",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    nil,
 			},
 			want: false,
@@ -189,7 +189,7 @@ func TestIsIgnored(t *testing.T) {
 			name:    "all_ignored",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
-				ignoreAllVersions: true,
+				IgnoreAllVersions: true,
 				IgnoreVersions:    nil,
 			},
 			want: true,
@@ -198,7 +198,7 @@ func TestIsIgnored(t *testing.T) {
 			name:    "version_no_match",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    []string{"1.0.1", "<1.0.0", ">1.0.0"},
 			},
 			want: false,
@@ -207,7 +207,7 @@ func TestIsIgnored(t *testing.T) {
 			name:    "version_match_last",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    []string{"1.0.1", "<1.0.0", ">1.0.0", "1.0.0"},
 			},
 			want: true,
@@ -216,7 +216,7 @@ func TestIsIgnored(t *testing.T) {
 			name:    "version_exact_match",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    []string{"1.0.0"},
 			},
 			want: true,
@@ -225,7 +225,7 @@ func TestIsIgnored(t *testing.T) {
 			name:    "version_constraint_lt",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    []string{"<1.0.1"},
 			},
 			want: true,
@@ -234,7 +234,7 @@ func TestIsIgnored(t *testing.T) {
 			name:    "version_constraint_gt",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    []string{">0.0.1"},
 			},
 			want: true,
@@ -243,7 +243,7 @@ func TestIsIgnored(t *testing.T) {
 			name:    "version_constraint_lte",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    []string{"<=1.0.0"},
 			},
 			want: true,
@@ -252,7 +252,7 @@ func TestIsIgnored(t *testing.T) {
 			name:    "version_constraint_gte",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    []string{">=1.0.0"},
 			},
 			want: true,
@@ -261,7 +261,7 @@ func TestIsIgnored(t *testing.T) {
 			name:    "version_prerelease",
 			version: "1.1.0-alpha",
 			optOutSettings: &optOutSettings{
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    []string{"1.1.0-alpha"},
 			},
 			want: true,
@@ -270,7 +270,7 @@ func TestIsIgnored(t *testing.T) {
 			name:    "version_broken",
 			version: "abcd",
 			optOutSettings: &optOutSettings{
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    []string{"1.1.0-alpha"},
 			},
 			want:    false,
@@ -280,7 +280,7 @@ func TestIsIgnored(t *testing.T) {
 			name:    "constraint_broken",
 			version: "1.0.0",
 			optOutSettings: &optOutSettings{
-				ignoreAllVersions: false,
+				IgnoreAllVersions: false,
 				IgnoreVersions:    []string{"alsdkfas"},
 			},
 			want:    false,

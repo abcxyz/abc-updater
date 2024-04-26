@@ -122,7 +122,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 		return "", fmt.Errorf("failed to load opt out settings: %w", err)
 	}
 
-	if optOutSettings.allVersionUpdatesIgnored() {
+	if optOutSettings.IgnoreAllVersions {
 		return "", nil
 	}
 

@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/abcxyz/pkg/logging"
 	"io"
 	"net/http"
 	"net/url"
@@ -103,7 +104,7 @@ func SendMetricsSync(ctx context.Context, info *MetricsInfo) error {
 		return fmt.Errorf("failed to load opt out settings: %w", err)
 	}
 
-	if optOutSettings.allVersionUpdatesIgnored() {
+	if optOutSettings.NoMetrics {
 		return nil
 	}
 
@@ -122,10 +123,13 @@ func SendMetricsSync(ctx context.Context, info *MetricsInfo) error {
 			return fmt.Errorf("could not generate id for metrics: %w")
 		}
 		installID = installUUID.String()
-		storeInstallID(info, &InstallIDData{
+		err = storeInstallID(info, &InstallIDData{
 			IDCreatedTimestamp: time.Now().Unix(),
 			InstallID:          installID,
 		})
+		if err != nil {
+			logging.FromContext(ctx).DebugContext(ctx, "error storing installID", "error", err.Error())
+		}
 	} else {
 		installID = storedID.InstallID
 	}
