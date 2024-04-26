@@ -19,15 +19,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/abcxyz/abc-updater/pkg/abcupdater/localstore"
-	"github.com/google/uuid"
-	"github.com/sethvargo/go-envconfig"
 	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
 	"regexp"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/sethvargo/go-envconfig"
+
+	"github.com/abcxyz/abc-updater/pkg/abcupdater/localstore"
 )
 
 const (
