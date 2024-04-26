@@ -54,7 +54,6 @@ type MetricsInfo struct {
 	// An optional Lookuper to load envconfig structs. Will default to os environment variables.
 	Lookuper envconfig.Lookuper
 
-	// TODO: this is a bit different from design doc, is it ok?
 	Metrics map[string]int
 
 	// Optional override for install id file location. Mostly intended for testing.
@@ -72,13 +71,12 @@ type InstallIDData struct {
 
 type SendMetricRequest struct {
 	// The ID of the application to check.
-	AppID string `json:"appID"`
+	AppID string `json:"appId"`
 
 	// The version of the app to check for updates.
 	// Should be of form vMAJOR[.MINOR[.PATCH[-PRERELEASE][+BUILD]]] (e.g., v1.0.1)
 	Version string `json:"version"`
 
-	// TODO: this is a bit different from design doc, is it ok?
 	Metrics map[string]int `json:"metrics"`
 
 	// InstallID. Expected to be a hex 8-4-4-4-12 formatted v4 UUID.
@@ -169,16 +167,18 @@ func SendMetricsSync(ctx context.Context, info *MetricsInfo) error {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	// Future releases may be more strict.
+	if resp.StatusCode >= 300 || resp.StatusCode <= 199 {
 		b, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorResponseBytes))
 		if err != nil {
-			return fmt.Errorf("unable to read response body")
+			return fmt.Errorf("received %d response, unable to read response body", resp.StatusCode)
 		}
 
-		return fmt.Errorf("not a 200 response: %s", string(b))
+		return fmt.Errorf("received %d response: %s", resp.StatusCode, string(b))
 	}
 
-	// For now, ignore response body. 200 is sufficient.
+	// For now, ignore response body for happy responses.
+	// Future versions may parse warnings for debug logging.
 	return nil
 }
 
