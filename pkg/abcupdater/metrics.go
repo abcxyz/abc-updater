@@ -86,7 +86,7 @@ type SendMetricRequest struct {
 
 // Stricter than uuid.Parse() which isn't meant for validating strings according
 // to documentation.
-func validInstallId(id string) bool {
+func validInstallID(id string) bool {
 	return regExUUID.MatchString(id)
 }
 
@@ -120,7 +120,7 @@ func SendMetricsSync(ctx context.Context, info *MetricsInfo) error {
 	if generateNewID {
 		installUUID, err := uuid.NewRandom()
 		if err != nil {
-			return fmt.Errorf("could not generate id for metrics: %w")
+			return fmt.Errorf("could not generate id for metrics: %w", err)
 		}
 		installID = installUUID.String()
 		err = storeInstallID(info, &InstallIDData{
@@ -203,7 +203,7 @@ func loadInstallID(c *MetricsInfo) (*InstallIDData, error) {
 		return nil, fmt.Errorf("could not load install id: %w", err)
 	}
 	// Validate InstallID
-	if !validInstallId(stored.InstallID) {
+	if !validInstallID(stored.InstallID) {
 		return nil, fmt.Errorf("invalid install id")
 	}
 
