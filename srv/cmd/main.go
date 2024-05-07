@@ -19,12 +19,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/abcxyz/abc-updater/srv/pkg"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/abcxyz/abc-updater/srv/pkg"
 
 	"github.com/abcxyz/pkg/logging"
 	"github.com/abcxyz/pkg/renderer"
@@ -78,7 +79,7 @@ func GetAllowedMetrics(appID string) (*AppMetrics, error) {
 func handleMetric(h *renderer.Renderer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logger := logging.FromContext(r.Context())
-		metric_logger := logger.WithGroup("metric")
+		metricLogger := logger.WithGroup("metric")
 		logger.InfoContext(r.Context(), "handling request")
 
 		metrics, err := pkg.DecodeRequest[SendMetricRequest](r.Context(), w, r, h)
@@ -96,7 +97,7 @@ func handleMetric(h *renderer.Renderer) http.Handler {
 		for name, count := range metrics.Metrics {
 			if allowedMetrics.MetricAllowed(name) {
 				// TODO: does this leak sensitive information? Is default logger preferred.
-				metric_logger.InfoContext(r.Context(), "metric received", "appID", metrics.AppID, "appVersion", metrics.AppVersion, "installId", metrics.InstallID, "name", name, "count", count)
+				metricLogger.InfoContext(r.Context(), "metric received", "appID", metrics.AppID, "appVersion", metrics.AppVersion, "installId", metrics.InstallID, "name", name, "count", count)
 			} else {
 				// TODO: do we want to return a warning to client or fail silently?
 			}
