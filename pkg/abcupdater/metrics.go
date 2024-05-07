@@ -128,7 +128,7 @@ func SendMetricsSync(ctx context.Context, info *MetricsInfo) error {
 			InstallID:          installID,
 		})
 		if err != nil {
-			logging.FromContext(ctx).DebugContext(ctx, "error storing installID", "error", err.Error())
+			logging.FromContext(ctx).DebugContext(ctx, "error storing installID, will be a defacto session id", "error", err.Error())
 		}
 	} else {
 		installID = storedID.InstallID

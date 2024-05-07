@@ -44,10 +44,15 @@ func TestSendMetricsSync(t *testing.T) {
 		name    string
 		appID   string
 		version string
+		metrics map[string]int
 		env     map[string]string
-		want    string
+		wantRequest map[string]any
 		wantErr string
-		cached  *LocalVersionData
-	}{}
+		installID  *InstallIDData
+	}{
+		{
+			name: "one_metric_success"
+		},
+	}
 
 }
