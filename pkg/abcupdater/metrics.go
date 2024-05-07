@@ -40,7 +40,7 @@ const (
 var regExUUID = regexp.MustCompile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 type metricsConfig struct {
-	ServerURL string `env:"ABC_UPDATER_METRICS_URL,default=https://abc-updater-metrics.tycho.joonix.net"`
+	ServerURL string `env:"ABC_UPDATER_METRICS_URL, default=https://abc-updater-metrics.tycho.joonix.net"`
 }
 
 // MetricsInfo are the parameters for sending metrics.
@@ -59,13 +59,14 @@ type MetricsInfo struct {
 
 	// Optional override for install id file location. Mostly intended for testing.
 	// If empty uses default location.
-	InstallIDFileOverride string
+	installIDFileOverride string
 }
 
 // InstallIDData defines the json file that defines installation id.
 type InstallIDData struct {
 	// Time ID was created, in UTC epoch seconds. Currently unused.
 	IDCreatedTimestamp int64 `json:"idCreatedTimestamp"`
+
 	// InstallID. Expected to be a hex 8-4-4-4-12 formatted v4 UUID.
 	InstallID string `json:"installId"`
 }
@@ -143,24 +144,24 @@ func SendMetricsSync(ctx context.Context, info *MetricsInfo) error {
 
 	client := &http.Client{}
 
-	buf := bytes.Buffer{}
-	if err := json.NewEncoder(&buf).Encode(SendMetricRequest{
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(&SendMetricRequest{
 		AppID:     info.AppID,
 		Version:   info.Version,
 		Metrics:   info.Metrics,
 		InstallID: installID,
 	}); err != nil {
-		return fmt.Errorf("failed to marshal metric json: %w", err)
+		return fmt.Errorf("failed to marshal metrics as json: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf(c.ServerURL+"/sendMetrics"), &buf)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("failed to create http request: %w", err)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to make request: %w", err)
+		return fmt.Errorf("failed to make http request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -181,7 +182,7 @@ func SendMetricsSync(ctx context.Context, info *MetricsInfo) error {
 
 // A per-application install id is randomly generated.
 func loadInstallID(c *MetricsInfo) (*InstallIDData, error) {
-	path := c.InstallIDFileOverride
+	path := c.installIDFileOverride
 	if path == "" {
 		dir, err := localstore.DefaultDir(c.AppID)
 		if err != nil {
@@ -203,7 +204,7 @@ func loadInstallID(c *MetricsInfo) (*InstallIDData, error) {
 }
 
 func storeInstallID(c *MetricsInfo, data *InstallIDData) error {
-	path := c.InstallIDFileOverride
+	path := c.installIDFileOverride
 	if path == "" {
 		dir, err := localstore.DefaultDir(c.AppID)
 		if err != nil {
