@@ -18,10 +18,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/abcxyz/pkg/logging"
 	"io"
 	"net/http"
 	"sync"
+
+	"github.com/abcxyz/pkg/logging"
 )
 
 const (
@@ -61,18 +62,12 @@ func (db *MetricsDB) Update(ctx context.Context, params *MetricsLoadParams) erro
 		if err != nil {
 			logger := logging.FromContext(ctx)
 			logger.WarnContext(ctx, "Error looking up metrics definitions for application in manifest. Will use cached definition if available.", "appID", app, "cause", err.Error())
-			db.mu.RLock()
-			unlocker := sync.OnceFunc(db.mu.RUnlock)
-			defer unlocker()
-			if db.apps != nil {
-				v, ok := db.apps[app]
-				if ok {
-					newDefs[app] = v
-				}
+			// Technically a race as we could squash changes created by another update
+			// but not a big deal if that happens.
+			metrics, err := db.GetAllowedMetrics(app)
+			if err != nil {
+				newDefs[app] = metrics
 			}
-			// Technically introduces a race, but consequences are unimportant and
-			// not unlocking would cause deadlock when we acquire a write lock later.
-			unlocker()
 			continue
 		} else {
 			metricSet := make(map[string]interface{}, len(def.Metrics))
@@ -85,7 +80,6 @@ func (db *MetricsDB) Update(ctx context.Context, params *MetricsLoadParams) erro
 			}
 		}
 	}
-	// Danger: will deadlock if RLock() from for loop isn't released.
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	oldDefs := db.apps
@@ -96,7 +90,8 @@ func (db *MetricsDB) Update(ctx context.Context, params *MetricsLoadParams) erro
 
 // Log any changes in application lists. Individual metric names changes not
 // currently logged. Logging is called in a goroutine to reduce blocking when
-// holding write lock.
+// holding write lock. Must only be called by a function that already
+// holds lock.
 func diffApps(ctx context.Context, oldDefs map[string]*AppMetrics, newDefs map[string]*AppMetrics) {
 	if oldDefs == nil {
 		oldDefs = make(map[string]*AppMetrics)
@@ -119,7 +114,6 @@ func diffApps(ctx context.Context, oldDefs map[string]*AppMetrics, newDefs map[s
 // GetAllowedMetrics returns a struct containing metrics for a given AppID.
 // An error is returned if that AppID is not defined in the backend for metrics.
 func (db *MetricsDB) GetAllowedMetrics(appID string) (*AppMetrics, error) {
-	// TODO: implement me
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 	if db.apps == nil {
@@ -127,6 +121,7 @@ func (db *MetricsDB) GetAllowedMetrics(appID string) (*AppMetrics, error) {
 		return nil, fmt.Errorf("no metric definition found for app %s", appID)
 	}
 	v, ok := db.apps[appID]
+	// TODO: this should bubble up as a 404
 	if !ok {
 		return nil, fmt.Errorf("no metric definition found for app %s", appID)
 	}
