@@ -19,24 +19,25 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/abcxyz/abc-updater/pkg/abcupdater/localstore"
-	"github.com/google/uuid"
-	"github.com/sethvargo/go-envconfig"
 	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
 	"regexp"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/sethvargo/go-envconfig"
+
+	"github.com/abcxyz/abc-updater/pkg/abcupdater/localstore"
+	"github.com/abcxyz/pkg/logging"
 )
 
 const (
 	installIDFileName = "id.json"
 )
 
-var (
-	regExUUID = regexp.MustCompile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
-)
+var regExUUID = regexp.MustCompile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 type metricsConfig struct {
 	ServerURL string `env:"ABC_UPDATER_METRICS_URL,default=https://abc-updater-metrics.tycho.joonix.net"`
@@ -53,7 +54,6 @@ type MetricsInfo struct {
 	// An optional Lookuper to load envconfig structs. Will default to os environment variables.
 	Lookuper envconfig.Lookuper
 
-	// TODO: this is a bit different from design doc, is it ok?
 	Metrics map[string]int
 
 	// Optional override for install id file location. Mostly intended for testing.
@@ -63,7 +63,7 @@ type MetricsInfo struct {
 
 // InstallIDData defines the json file that defines installation id.
 type InstallIDData struct {
-	// Time ID was created, in UTC epoch seconds.
+	// Time ID was created, in UTC epoch seconds. Currently unused.
 	IDCreatedTimestamp int64 `json:"idCreatedTimestamp"`
 	// InstallID. Expected to be a hex 8-4-4-4-12 formatted v4 UUID.
 	InstallID string `json:"installId"`
@@ -77,7 +77,6 @@ type SendMetricRequest struct {
 	// Should be of form vMAJOR[.MINOR[.PATCH[-PRERELEASE][+BUILD]]] (e.g., v1.0.1)
 	AppVersion string `json:"AppVersion"`
 
-	// TODO: this is a bit different from design doc, is it ok?
 	Metrics map[string]int `json:"metrics"`
 
 	// InstallID. Expected to be a hex 8-4-4-4-12 formatted v4 UUID.
@@ -86,7 +85,7 @@ type SendMetricRequest struct {
 
 // Stricter than uuid.Parse() which isn't meant for validating strings according
 // to documentation.
-func validInstallId(id string) bool {
+func validInstallID(id string) bool {
 	return regExUUID.MatchString(id)
 }
 
@@ -104,29 +103,25 @@ func SendMetricsSync(ctx context.Context, info *MetricsInfo) error {
 		return fmt.Errorf("failed to load opt out settings: %w", err)
 	}
 
-	if optOutSettings.allVersionUpdatesIgnored() {
+	if optOutSettings.NoMetrics {
 		return nil
 	}
 
-	generateNewID := true
 	storedID, err := loadInstallID(info)
-	if err == nil && storedID != nil {
-		oneDayAgo := time.Now().Add(-24 * time.Hour)
-		// Defensively check for case ID Created is in future.
-		generateNewID = oneDayAgo.Unix() >= storedID.IDCreatedTimestamp ||
-			time.Now().Unix() < storedID.IDCreatedTimestamp
-	}
 	var installID string
-	if generateNewID {
+	if err != nil || storedID == nil {
 		installUUID, err := uuid.NewRandom()
 		if err != nil {
-			return fmt.Errorf("could not generate id for metrics: %w")
+			return fmt.Errorf("could not generate id for metrics: %w", err)
 		}
 		installID = installUUID.String()
-		storeInstallID(info, &InstallIDData{
+		err = storeInstallID(info, &InstallIDData{
 			IDCreatedTimestamp: time.Now().Unix(),
 			InstallID:          installID,
 		})
+		if err != nil {
+			logging.FromContext(ctx).DebugContext(ctx, "error storing installID", "error", err.Error())
+		}
 	} else {
 		installID = storedID.InstallID
 	}
@@ -168,21 +163,22 @@ func SendMetricsSync(ctx context.Context, info *MetricsInfo) error {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	// Future releases may be more strict.
+	if resp.StatusCode >= 300 || resp.StatusCode <= 199 {
 		b, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorResponseBytes))
 		if err != nil {
-			return fmt.Errorf("unable to read response body")
+			return fmt.Errorf("received %d response, unable to read response body", resp.StatusCode)
 		}
 
-		return fmt.Errorf("not a 200 response: %s", string(b))
+		return fmt.Errorf("received %d response: %s", resp.StatusCode, string(b))
 	}
 
-	// For now, ignore response body. 200 is sufficient.
+	// For now, ignore response body for happy responses.
+	// Future versions may parse warnings for debug logging.
 	return nil
 }
 
-// A per-application install id is randomly generated. It gets rotated every
-// 24 hours. This is to avoid a single client polluting metrics.
+// A per-application install id is randomly generated.
 func loadInstallID(c *MetricsInfo) (*InstallIDData, error) {
 	path := c.InstallIDFileOverride
 	if path == "" {
@@ -198,7 +194,7 @@ func loadInstallID(c *MetricsInfo) (*InstallIDData, error) {
 		return nil, fmt.Errorf("could not load install id: %w", err)
 	}
 	// Validate InstallID
-	if !validInstallId(stored.InstallID) {
+	if !validInstallID(stored.InstallID) {
 		return nil, fmt.Errorf("invalid install id")
 	}
 

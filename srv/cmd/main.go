@@ -19,13 +19,14 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/abcxyz/abc-updater/srv/pkg"
 	"github.com/sethvargo/go-envconfig"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/abcxyz/abc-updater/srv/pkg"
 
 	"github.com/abcxyz/pkg/logging"
 	"github.com/abcxyz/pkg/renderer"
