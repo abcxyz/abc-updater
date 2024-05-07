@@ -64,7 +64,7 @@ type MetricsInfo struct {
 
 // InstallIDData defines the json file that defines installation id.
 type InstallIDData struct {
-	// Time ID was created, in UTC epoch seconds.
+	// Time ID was created, in UTC epoch seconds. Currently unused.
 	IDCreatedTimestamp int64 `json:"idCreatedTimestamp"`
 	// InstallID. Expected to be a hex 8-4-4-4-12 formatted v4 UUID.
 	InstallID string `json:"installId"`
@@ -108,16 +108,9 @@ func SendMetricsSync(ctx context.Context, info *MetricsInfo) error {
 		return nil
 	}
 
-	generateNewID := true
 	storedID, err := loadInstallID(info)
-	if err == nil && storedID != nil {
-		oneDayAgo := time.Now().Add(-24 * time.Hour)
-		// Defensively check for case ID Created is in future.
-		generateNewID = oneDayAgo.Unix() >= storedID.IDCreatedTimestamp ||
-			time.Now().Unix() < storedID.IDCreatedTimestamp
-	}
 	var installID string
-	if generateNewID {
+	if err != nil || storedID == nil {
 		installUUID, err := uuid.NewRandom()
 		if err != nil {
 			return fmt.Errorf("could not generate id for metrics: %w", err)
@@ -186,8 +179,7 @@ func SendMetricsSync(ctx context.Context, info *MetricsInfo) error {
 	return nil
 }
 
-// A per-application install id is randomly generated. It gets rotated every
-// 24 hours. This is to avoid a single client polluting metrics.
+// A per-application install id is randomly generated.
 func loadInstallID(c *MetricsInfo) (*InstallIDData, error) {
 	path := c.InstallIDFileOverride
 	if path == "" {
