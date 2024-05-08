@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package abcupdater
+package updater
 
 import (
 	"bytes"
@@ -29,7 +29,8 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/sethvargo/go-envconfig"
 
-	"github.com/abcxyz/abc-updater/pkg/abcupdater/localstore"
+	"github.com/abcxyz/abc-updater/pkg/localstore"
+	"github.com/abcxyz/abc-updater/pkg/optout"
 	"github.com/abcxyz/pkg/logging"
 )
 
@@ -117,7 +118,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 		lookuper = envconfig.OsLookuper()
 	}
 
-	optOutSettings, err := loadOptOutSettings(ctx, lookuper, params.AppID)
+	optOutSettings, err := optout.LoadOptOutSettings(ctx, lookuper, params.AppID)
 	if err != nil {
 		return "", fmt.Errorf("failed to load opt out settings: %w", err)
 	}
@@ -161,6 +162,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
+	req.Header.Set("User-Agent", "Go-http-client/1.1 github.com/abcxyz/abc-updater")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -187,7 +189,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 		AppResponse:        result,
 	})
 
-	ignore, err := optOutSettings.isIgnored(result.CurrentVersion)
+	ignore, err := optOutSettings.IsIgnored(result.CurrentVersion)
 	if err != nil {
 		return "", err
 	}
@@ -205,7 +207,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 			AppName:       result.AppName,
 			RemoteVersion: remoteVersion.String(),
 			AppRepoURL:    result.AppRepoURL,
-			OptOutEnvVar:  ignoreVersionsEnvVar(result.AppID),
+			OptOutEnvVar:  optout.IgnoreVersionsEnvVar(result.AppID),
 		})
 		if err != nil {
 			return "", fmt.Errorf("failed to generate version check output: %w", err)
