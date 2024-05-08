@@ -191,7 +191,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 
 	ignore, err := optOutSettings.IsIgnored(result.CurrentVersion)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error checking optout: %w", err)
 	}
 	if ignore {
 		return "", nil
