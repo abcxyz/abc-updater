@@ -163,6 +163,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("User-Agent", "Go-http-client/1.1 github.com/abcxyz/abc-updater")
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {

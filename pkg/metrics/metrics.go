@@ -196,6 +196,8 @@ func (c *Client) SendSync(ctx context.Context, metrics map[string]int) error {
 		return fmt.Errorf("failed to create http request: %w", err)
 	}
 	req.Header.Set("User-Agent", "Go-http-client/1.1 github.com/abcxyz/abc-updater")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
