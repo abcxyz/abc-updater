@@ -26,10 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/abcxyz/abc-updater/pkg/optout"
 	"github.com/google/go-cmp/cmp"
 	"github.com/sethvargo/go-envconfig"
 
+	"github.com/abcxyz/abc-updater/pkg/optout"
 	"github.com/abcxyz/pkg/testutil"
 )
 
