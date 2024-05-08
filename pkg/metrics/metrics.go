@@ -138,11 +138,11 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 			// TODO: should we just have a preset ID for this case that we don't save?
 			return nil, err
 		}
-		err = storeInstallID(appID, opts.installIDFileOverride, &InstallIDData{
+
+		if err = storeInstallID(appID, opts.installIDFileOverride, &InstallIDData{
 			IDCreatedTimestamp: time.Now().Unix(),
 			InstallID:          installID,
-		})
-		if err != nil {
+		}); err != nil {
 			logging.FromContext(ctx).DebugContext(ctx, "error storing installID", "error", err.Error())
 		}
 	} else {
