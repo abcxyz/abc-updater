@@ -70,7 +70,7 @@ func WithLookuper(lookuper envconfig.Lookuper) Option {
 }
 
 // For testing. Can expose externally if a need arises in the future.
-func withInstallIDFileOverride(path string) Option {
+func withInstallIDFileOverride(path string) Option { // nolint:unused
 	return func(o *options) *options {
 		o.installIDFileOverride = path
 		return o
