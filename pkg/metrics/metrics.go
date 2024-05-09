@@ -78,6 +78,8 @@ func withInstallIDFileOverride(path string) Option { //nolint:unused
 }
 
 // TODO: should Client be an interface so we can have a noop client returned for caller to use in case of error?
+// TODO: Alternatively, I could never return an error, and instead just set optOut if I encounter error in setup,
+// TODO: which is effectively a noop client.
 type Client struct {
 	appID      string
 	version    string
