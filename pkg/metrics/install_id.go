@@ -44,6 +44,7 @@ func generateInstallID() (string, error) {
 	// 8 bytes = 64 bits.
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
+		// Shouldn't ever happen: https://github.com/golang/go/issues/66821
 		return "", fmt.Errorf("error generating install ID: %w", err)
 	}
 	return base64.StdEncoding.EncodeToString(b), nil

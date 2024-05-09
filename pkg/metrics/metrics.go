@@ -137,7 +137,6 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 	if err != nil || storedID == nil {
 		installID, err = generateInstallID()
 		if err != nil {
-			// TODO: should we just have a preset ID for this case that we don't save?
 			return nil, err
 		}
 
