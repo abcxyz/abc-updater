@@ -47,7 +47,6 @@ func generateInstallID() (string, error) {
 	return base64.StdEncoding.EncodeToString(b), nil
 }
 
-// A per-application install id is randomly generated.
 func loadInstallID(appID, installIDFileOverride string) (*InstallIDData, error) {
 	path := installIDFileOverride
 	if path == "" {
@@ -62,7 +61,7 @@ func loadInstallID(appID, installIDFileOverride string) (*InstallIDData, error) 
 	if err := localstore.LoadJSONFile(path, &stored); err != nil {
 		return nil, fmt.Errorf("could not load install id: %w", err)
 	}
-	// Validate InstallID
+
 	if !validInstallID(stored.InstallID) {
 		return nil, fmt.Errorf("invalid install id")
 	}
