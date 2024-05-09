@@ -25,9 +25,6 @@ import (
 
 // InstallIDData defines the json file that defines installation id.
 type InstallIDData struct {
-	// Time ID was created, in UTC epoch seconds. Currently unused.
-	IDCreatedTimestamp int64 `json:"idCreatedTimestamp"`
-
 	// InstallID. Expected to be a hex 8-4-4-4-12 formatted v4 UUID.
 	InstallID string `json:"installId"`
 }

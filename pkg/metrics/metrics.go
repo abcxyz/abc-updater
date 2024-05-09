@@ -141,8 +141,7 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 		}
 
 		if err = storeInstallID(appID, opts.installIDFileOverride, &InstallIDData{
-			IDCreatedTimestamp: time.Now().Unix(),
-			InstallID:          installID,
+			InstallID: installID,
 		}); err != nil {
 			logging.FromContext(ctx).DebugContext(ctx, "error storing installID", "error", err.Error())
 		}
