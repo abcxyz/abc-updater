@@ -68,8 +68,8 @@ type versionConfig struct {
 	IgnoreVersions []string `env:"IGNORE_VERSIONS"`
 }
 
-func (v *versionConfig) ignoreAll() bool {
-	for _, version := range v.IgnoreVersions {
+func (c *versionConfig) ignoreAll() bool {
+	for _, version := range c.IgnoreVersions {
 		if strings.ToLower(version) == "all" {
 			return true
 		}
