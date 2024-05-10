@@ -47,6 +47,7 @@ type options struct {
 	// Optional override for install id file location. Mostly intended for testing.
 	// If empty uses default location.
 	installIDFileOverride string
+	returnErrors          bool
 }
 
 // Option is the metrics Client option type.
@@ -77,9 +78,7 @@ func withInstallIDFileOverride(path string) Option { //nolint:unused
 	}
 }
 
-// TODO: should Client be an interface so we can have a noop client returned for caller to use in case of error?
-// TODO: Alternatively, I could never return an error, and instead just set optOut if I encounter error in setup,
-// TODO: which is effectively a noop client.
+// Client is a client for reporting metrics about an application's usage.
 type Client struct {
 	appID      string
 	version    string
@@ -90,6 +89,8 @@ type Client struct {
 }
 
 // New provides a Client based on provided values and options.
+// Will always return a non-nil Client, in error cases it will have optOut
+// enabled making it effectively a noop.
 func New(ctx context.Context, appID, version string, opt ...Option) (*Client, error) {
 	opts := &options{}
 
@@ -104,7 +105,7 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 
 	optOut, err := optout.LoadOptOutSettings(ctx, opts.lookuper, appID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load opt out settings: %w", err)
+		return noopClient(), fmt.Errorf("failed to load opt out settings: %w", err)
 	}
 
 	// Short Circuit if user opted out of metrics.
@@ -123,13 +124,13 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 		Target:   &c,
 		Lookuper: prefixLookuper,
 	}); err != nil {
-		return nil, fmt.Errorf("failed to process envconfig: %w", err)
+		return noopClient(), fmt.Errorf("failed to process envconfig: %w", err)
 	}
 
 	// Use ParseRequestURI over Parse because Parse validation is more loose and will accept
 	// things such as relative paths without a host.
 	if _, err := url.ParseRequestURI(c.ServerURL); err != nil {
-		return nil, fmt.Errorf("failed to parse server url: %w", err)
+		return noopClient(), fmt.Errorf("failed to parse server url: %w", err)
 	}
 
 	storedID, err := loadInstallID(appID, opts.installIDFileOverride)
@@ -137,7 +138,7 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 	if err != nil || storedID == nil {
 		installID, err = generateInstallID()
 		if err != nil {
-			return nil, err
+			return noopClient(), err
 		}
 
 		if err = storeInstallID(appID, opts.installIDFileOverride, &InstallIDData{
@@ -167,16 +168,17 @@ type SendMetricRequest struct {
 	// Should be of form vMAJOR[.MINOR[.PATCH[-PRERELEASE][+BUILD]]] (e.g., v1.0.1)
 	Version string `json:"version"`
 
+	// Only single item is used now, map used for flexibility in the future.
 	Metrics map[string]int `json:"metrics"`
 
 	// InstallID. Expected to be a random base64 value.
 	InstallID string `json:"installId"`
 }
 
-// SendSync sends information about application usage. Noop if metrics
+// WriteMetric sends information about application usage. Noop if metrics
 // are opted out.
 // Accepts a context for cancellation.
-func (c *Client) SendSync(ctx context.Context, metrics map[string]int) error {
+func (c *Client) WriteMetric(ctx context.Context, name string, count int) error {
 	if c.optOut.NoMetrics {
 		return nil
 	}
@@ -185,7 +187,7 @@ func (c *Client) SendSync(ctx context.Context, metrics map[string]int) error {
 	if err := json.NewEncoder(&buf).Encode(&SendMetricRequest{
 		AppID:     c.appID,
 		Version:   c.version,
-		Metrics:   metrics,
+		Metrics:   map[string]int{name: count},
 		InstallID: c.installID,
 	}); err != nil {
 		return fmt.Errorf("failed to marshal metrics as json: %w", err)
@@ -217,4 +219,8 @@ func (c *Client) SendSync(ctx context.Context, metrics map[string]int) error {
 	// For now, ignore response body for happy responses.
 	// Future versions may parse warnings for debug logging.
 	return nil
+}
+
+func noopClient() *Client {
+	return &Client{optOut: &optout.OptOutSettings{NoMetrics: true}}
 }
