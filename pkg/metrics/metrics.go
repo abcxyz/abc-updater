@@ -47,7 +47,6 @@ type options struct {
 	// Optional override for install id file location. Mostly intended for testing.
 	// If empty uses default location.
 	installIDFileOverride string
-	returnErrors          bool
 }
 
 // Option is the metrics Client option type.
