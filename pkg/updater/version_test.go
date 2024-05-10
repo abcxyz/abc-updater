@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package abcupdater
+package updater
 
 import (
 	"bytes"
@@ -29,6 +29,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sethvargo/go-envconfig"
 
+	"github.com/abcxyz/abc-updater/pkg/optout"
 	"github.com/abcxyz/pkg/testutil"
 )
 
@@ -151,8 +152,8 @@ func TestCheckAppVersionSync(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "v0.1.0",
 			env: map[string]string{
-				"ABC_UPDATER_URL":                    ts.URL,
-				ignoreVersionsEnvVar("sample_app_1"): "all",
+				"ABC_UPDATER_URL": ts.URL,
+				optout.IgnoreVersionsEnvVar("sample_app_1"): "all",
 			},
 			want: "",
 		},
@@ -161,8 +162,8 @@ func TestCheckAppVersionSync(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "v0.1.0",
 			env: map[string]string{
-				"ABC_UPDATER_URL":                    ts.URL,
-				ignoreVersionsEnvVar("sample_app_1"): "1.0.0",
+				"ABC_UPDATER_URL": ts.URL,
+				optout.IgnoreVersionsEnvVar("sample_app_1"): "1.0.0",
 			},
 			want: "",
 		},
@@ -171,8 +172,8 @@ func TestCheckAppVersionSync(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "v0.0.1",
 			env: map[string]string{
-				"ABC_UPDATER_URL":                    ts.URL,
-				ignoreVersionsEnvVar("sample_app_1"): "0.0.2",
+				"ABC_UPDATER_URL": ts.URL,
+				optout.IgnoreVersionsEnvVar("sample_app_1"): "0.0.2",
 			},
 			want: `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
 		},
