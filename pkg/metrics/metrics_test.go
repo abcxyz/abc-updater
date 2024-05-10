@@ -12,20 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package abcupdater
+package metrics
 
 import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 )
+
+func TestCreateMetrics(t *testing.T) {
+
+}
 
 func TestSendMetricsSync(t *testing.T) {
 	t.Parallel()
 
+	// Record calls made to test server. Separate per test using a per-test
+	// unique id in URL.
+	reqMap := sync.Map{}
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, prevExist := reqMap.Swap(r.RequestURI, r)
+		if prevExist {
+			t.Fatalf("multiple requests to same url: %s", r.RequestURI)
+		}
 		if !strings.HasSuffix(r.RequestURI, "/sendMetrics") {
 			w.WriteHeader(http.StatusNotFound)
 			fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
