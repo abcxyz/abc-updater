@@ -28,7 +28,6 @@ import (
 
 	"github.com/sethvargo/go-envconfig"
 
-	"github.com/abcxyz/abc-updater/pkg/optout"
 	"github.com/abcxyz/pkg/logging"
 )
 
@@ -39,6 +38,7 @@ const (
 
 type metricsConfig struct {
 	ServerURL string `env:"ABC_METRICS_URL, default=https://abc-updater-metrics.tycho.joonix.net"`
+	NoMetrics bool   `env:"NO_METRICS"`
 }
 
 type options struct {
@@ -83,7 +83,7 @@ type Client struct {
 	version    string
 	installID  string
 	httpClient *http.Client
-	optOut     *optout.OptOutSettings
+	optOut     bool
 	config     *metricsConfig
 }
 
@@ -102,21 +102,6 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 		opts.lookuper = envconfig.OsLookuper()
 	}
 
-	optOut, err := optout.LoadOptOutSettings(ctx, opts.lookuper, appID)
-	if err != nil {
-		return noopClient(), fmt.Errorf("failed to load opt out settings: %w", err)
-	}
-
-	// Short Circuit if user opted out of metrics.
-	if optOut.NoMetrics {
-		return &Client{optOut: optOut}, nil
-	}
-
-	// Default to 1 second timeout httpClient.
-	if opts.httpClient == nil {
-		opts.httpClient = &http.Client{Timeout: 1 * time.Second}
-	}
-
 	var c metricsConfig
 	prefixLookuper := envconfig.PrefixLookuper(strings.ToUpper(appID)+"_", opts.lookuper)
 	if err := envconfig.ProcessWith(ctx, &envconfig.Config{
@@ -124,6 +109,16 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 		Lookuper: prefixLookuper,
 	}); err != nil {
 		return noopClient(), fmt.Errorf("failed to process envconfig: %w", err)
+	}
+
+	// Short Circuit if user opted out of metrics.
+	if c.NoMetrics {
+		return noopClient(), nil
+	}
+
+	// Default to 1 second timeout httpClient.
+	if opts.httpClient == nil {
+		opts.httpClient = &http.Client{Timeout: 1 * time.Second}
 	}
 
 	// Use ParseRequestURI over Parse because Parse validation is more loose and will accept
@@ -154,7 +149,6 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 		version:    version,
 		installID:  installID,
 		httpClient: opts.httpClient,
-		optOut:     optOut,
 		config:     &c,
 	}, nil
 }
@@ -178,7 +172,7 @@ type SendMetricRequest struct {
 // are opted out.
 // Accepts a context for cancellation.
 func (c *Client) WriteMetric(ctx context.Context, name string, count int) error {
-	if c.optOut.NoMetrics {
+	if c.optOut {
 		return nil
 	}
 
@@ -221,5 +215,5 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int) error 
 }
 
 func noopClient() *Client {
-	return &Client{optOut: &optout.OptOutSettings{NoMetrics: true}}
+	return &Client{optOut: true}
 }

@@ -29,7 +29,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/sethvargo/go-envconfig"
 
-	"github.com/abcxyz/abc-updater/pkg/optout"
 	"github.com/abcxyz/pkg/testutil"
 )
 
@@ -152,8 +151,8 @@ func TestCheckAppVersionSync(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "v0.1.0",
 			env: map[string]string{
-				"ABC_UPDATER_URL": ts.URL,
-				optout.IgnoreVersionsEnvVar("sample_app_1"): "all",
+				"ABC_UPDATER_URL":    ts.URL,
+				ignoreVersionsEnvVar: "all",
 			},
 			want: "",
 		},
@@ -162,8 +161,8 @@ func TestCheckAppVersionSync(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "v0.1.0",
 			env: map[string]string{
-				"ABC_UPDATER_URL": ts.URL,
-				optout.IgnoreVersionsEnvVar("sample_app_1"): "1.0.0",
+				"ABC_UPDATER_URL":    ts.URL,
+				ignoreVersionsEnvVar: "1.0.0",
 			},
 			want: "",
 		},
@@ -172,8 +171,8 @@ func TestCheckAppVersionSync(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "v0.0.1",
 			env: map[string]string{
-				"ABC_UPDATER_URL": ts.URL,
-				optout.IgnoreVersionsEnvVar("sample_app_1"): "0.0.2",
+				"ABC_UPDATER_URL":    ts.URL,
+				ignoreVersionsEnvVar: "0.0.2",
 			},
 			want: `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
 		},
@@ -310,5 +309,195 @@ func Test_asyncFunctionCallWaitForResultToWrite(t *testing.T) {
 	}
 	if got := outBuf.Writes; got != 1 {
 		t.Errorf("incorrect number of interactions got=%d, want=%d", got, 1)
+	}
+}
+
+func TestIsIgnored(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		version string
+		config  *versionConfig
+		want    bool
+		wantErr string
+	}{
+		{
+			name:    "nothing_ignored",
+			version: "1.0.0",
+			config: &versionConfig{
+				IgnoreVersions: nil,
+			},
+			want: false,
+		},
+		{
+			name:    "all_ignored",
+			version: "1.0.0",
+			config: &versionConfig{
+				IgnoreVersions: []string{"all"},
+			},
+			want: true,
+		},
+		{
+			name:    "all_ignored_other_info",
+			version: "1.0.0",
+			config: &versionConfig{
+				IgnoreVersions: []string{"1.0.1", "<1.0.0", "all", ">1.0.0"},
+			},
+			want: true,
+		},
+		{
+			name:    "version_no_match",
+			version: "1.0.0",
+			config: &versionConfig{
+				IgnoreVersions: []string{"1.0.1", "<1.0.0", ">1.0.0"},
+			},
+			want: false,
+		},
+		{
+			name:    "version_match_last",
+			version: "1.0.0",
+			config: &versionConfig{
+				IgnoreVersions: []string{"1.0.1", "<1.0.0", ">1.0.0", "1.0.0"},
+			},
+			want: true,
+		},
+		{
+			name:    "version_exact_match",
+			version: "1.0.0",
+			config: &versionConfig{
+				IgnoreVersions: []string{"1.0.0"},
+			},
+			want: true,
+		},
+		{
+			name:    "version_constraint_lt",
+			version: "1.0.0",
+			config: &versionConfig{
+				IgnoreVersions: []string{"<1.0.1"},
+			},
+			want: true,
+		},
+		{
+			name:    "version_constraint_gt",
+			version: "1.0.0",
+			config: &versionConfig{
+				IgnoreVersions: []string{">0.0.1"},
+			},
+			want: true,
+		},
+		{
+			name:    "version_constraint_lte",
+			version: "1.0.0",
+			config: &versionConfig{
+				IgnoreVersions: []string{"<=1.0.0"},
+			},
+			want: true,
+		},
+		{
+			name:    "version_constraint_gte",
+			version: "1.0.0",
+			config: &versionConfig{
+				IgnoreVersions: []string{">=1.0.0"},
+			},
+			want: true,
+		},
+		{
+			name:    "version_prerelease",
+			version: "1.1.0-alpha",
+			config: &versionConfig{
+				IgnoreVersions: []string{"1.1.0-alpha"},
+			},
+			want: true,
+		},
+		{
+			name:    "version_broken",
+			version: "abcd",
+			config: &versionConfig{
+				IgnoreVersions: []string{"1.1.0-alpha"},
+			},
+			want:    false,
+			wantErr: "failed to parse version",
+		},
+		{
+			name:    "constraint_broken",
+			version: "1.0.0",
+			config: &versionConfig{
+				IgnoreVersions: []string{"alsdkfas"},
+			},
+			want:    false,
+			wantErr: "Malformed constraint",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := tc.config.isIgnored(tc.version)
+
+			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
+				t.Error(diff)
+			}
+
+			if want := tc.want; got != want {
+				t.Errorf("incorrect IsIgnored got=%t, want=%t", got, want)
+			}
+		})
+	}
+}
+
+func TestIgnoreAll(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		config *versionConfig
+		want   bool
+	}{
+		{
+			name: "no_versions_not_ignored",
+			config: &versionConfig{
+				IgnoreVersions: nil,
+			},
+			want: false,
+		},
+		{
+			name: "only_all_ignored",
+			config: &versionConfig{
+				IgnoreVersions: []string{"all"},
+			},
+			want: true,
+		},
+		{
+			name: "concrete_list_not_ignored",
+			config: &versionConfig{
+				IgnoreVersions: []string{"1.0.0", "3.0.2"},
+			},
+			want: false,
+		},
+		{
+			name: "concrete_list_with_all_ignored",
+			config: &versionConfig{
+				IgnoreVersions: []string{"1.0.0", "3.0.2", "all"},
+			},
+			want: true,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tc.config.ignoreAll()
+
+			if want := tc.want; got != want {
+				t.Errorf("incorrect allVersionUpdatesIgnored got=%t, want=%t", got, want)
+			}
+		})
 	}
 }
