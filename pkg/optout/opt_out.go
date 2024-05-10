@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package abcupdater
+package optout
 
 import (
 	"context"
@@ -24,27 +24,28 @@ import (
 	"github.com/sethvargo/go-envconfig"
 )
 
-type optOutSettings struct {
+type OptOutSettings struct {
+	NoMetrics         bool     `env:"NO_METRICS"`
 	IgnoreVersions    []string `env:"IGNORE_VERSIONS"`
-	ignoreAllVersions bool
+	IgnoreAllVersions bool
 }
 
-// loadOptOutSettings will return an optOutSettings struct populated based on the lookuper provided.
-func loadOptOutSettings(ctx context.Context, lookuper envconfig.Lookuper, appID string) (*optOutSettings, error) {
+// LoadOptOutSettings will return an OptOutSettings struct populated based on the lookuper provided.
+func LoadOptOutSettings(ctx context.Context, lookuper envconfig.Lookuper, appID string) (*OptOutSettings, error) {
 	l := envconfig.PrefixLookuper(envVarPrefix(appID), lookuper)
-	var c optOutSettings
+	var c OptOutSettings
 	if err := envconfig.ProcessWith(ctx, &envconfig.Config{
 		Target:   &c,
 		Lookuper: l,
 	}); err != nil {
 		// if we fail loading envconfig, default to ignore updates
-		c.ignoreAllVersions = true
+		c.IgnoreAllVersions = true
 		return &c, fmt.Errorf("failed to process envconfig: %w", err)
 	}
 
 	for _, version := range c.IgnoreVersions {
 		if strings.ToLower(version) == "all" {
-			c.ignoreAllVersions = true
+			c.IgnoreAllVersions = true
 		}
 	}
 
@@ -55,18 +56,13 @@ func envVarPrefix(appID string) string {
 	return strings.ToUpper(appID) + "_"
 }
 
-func ignoreVersionsEnvVar(appID string) string {
+func IgnoreVersionsEnvVar(appID string) string {
 	return envVarPrefix(appID) + "IGNORE_VERSIONS"
 }
 
-// allVersionUpdatesIgnored returns true if all versions should be ignored.
-func (o *optOutSettings) allVersionUpdatesIgnored() bool {
-	return o.ignoreAllVersions
-}
-
-// isIgnored returns true if the version specified should be ignored.
-func (o *optOutSettings) isIgnored(checkVersion string) (bool, error) {
-	if o.allVersionUpdatesIgnored() {
+// IsIgnored returns true if the version specified should be ignored.
+func (o *OptOutSettings) IsIgnored(checkVersion string) (bool, error) {
+	if o.IgnoreAllVersions {
 		return true, nil
 	}
 
