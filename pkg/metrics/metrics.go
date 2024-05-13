@@ -91,6 +91,10 @@ type Client struct {
 // Will always return a non-nil Client, in error cases it will have optOut
 // enabled making it effectively a noop.
 func New(ctx context.Context, appID, version string, opt ...Option) (*Client, error) {
+	if len(appID) == 0 {
+		return noopClient(), fmt.Errorf("appID cannot be empty")
+	}
+
 	opts := &options{}
 
 	for _, o := range opt {

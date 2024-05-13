@@ -15,7 +15,9 @@
 package metrics
 
 import (
+	"context"
 	"fmt"
+	"github.com/sethvargo/go-envconfig"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,11 +25,69 @@ import (
 	"testing"
 )
 
-func TestCreateMetrics(t *testing.T) {
+const (
+	testAppID = "testapp"
+	testVersion = "1.0.0"
+	testInstallID = "yv66vt6tvu8="
+	testServerURL = "https://example.com"
+)
+
+var testClient http.Client
+
+func defaultClient() Client {
+	return Client{
+		appID:      testAppID,
+		version:    testVersion,
+		installID:  testInstallID,
+		httpClient: &testClient,
+		optOut:     false,
+		config:     &metricsConfig{
+			ServerURL: testServerURL,
+			NoMetrics: false,
+		},
+	}
+}
+func TestNew(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct{
+		name string
+		opts []Option
+		serverURL string
+        optOut bool
+		installID string
+		want Client
+		wantErr string
+	} {
+		{
+			name: "happy_path_no_opts_no_install_id_succeeds",
+			want: defaultClient(),
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+
+			// Set up env vars
+			envVars := map[string]string{
+				"ABC_METRICS_URL": testServerURL,
+			}
+			if tc.optOut {
+				envVars["NO_METRICS"] = "TRUE"
+			}
+			lookupper := envconfig.MapLookuper(envVars)
+
+			got, err := New(ctx, testAppID, testVersion, WithLookuper(lookupper)
+			// TODO: I don't like where this is going, maybe just make separate tests rather than table driven?)
+		})
+	}
 
 }
 
-func TestSendMetricsSync(t *testing.T) {
+func TestWriteMetric(t *testing.T) {
 	t.Parallel()
 
 	// Record calls made to test server. Separate per test using a per-test
