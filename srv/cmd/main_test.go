@@ -75,6 +75,13 @@ func TestRealMain(t *testing.T) {
 	}
 }
 
+func Test_handleMetric(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+	}
+}
+
 func TestHandleHello(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
