@@ -84,11 +84,12 @@ func (c *versionConfig) isIgnored(checkVersion string) (bool, error) {
 		return false, fmt.Errorf("failed to parse version: %w", err)
 	}
 
+	if c.ignoreAll() {
+		return true, nil
+	}
+
 	var cumulativeErr error
 	for _, ignoredVersion := range c.IgnoreVersions {
-		if strings.ToLower(ignoredVersion) == "all" {
-			return true, nil
-		}
 		c, err := version.NewConstraint(ignoredVersion)
 		if err != nil {
 			cumulativeErr = errors.Join(cumulativeErr, err)
