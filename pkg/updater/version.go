@@ -12,24 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package abcupdater
+package updater
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"text/template"
 	"time"
 
 	"github.com/hashicorp/go-version"
 	"github.com/sethvargo/go-envconfig"
 
-	"github.com/abcxyz/abc-updater/pkg/abcupdater/localstore"
+	"github.com/abcxyz/abc-updater/pkg/localstore"
 	"github.com/abcxyz/pkg/logging"
 )
 
@@ -50,6 +52,8 @@ type CheckVersionParams struct {
 	CacheFileOverride string
 }
 
+const ignoreVersionsEnvVar = "IGNORE_VERSIONS"
+
 // AppResponse is the response object for an app version request.
 // It contains information about the most recent version for a given app.
 type AppResponse struct {
@@ -60,7 +64,45 @@ type AppResponse struct {
 }
 
 type versionConfig struct {
-	ServerURL string `env:"ABC_UPDATER_URL,default=https://abc-updater.tycho.joonix.net"`
+	ServerURL      string   `env:"ABC_UPDATER_URL,default=https://abc-updater.tycho.joonix.net"`
+	IgnoreVersions []string `env:"IGNORE_VERSIONS"`
+}
+
+func (c *versionConfig) ignoreAll() bool {
+	for _, version := range c.IgnoreVersions {
+		if strings.ToLower(version) == "all" {
+			return true
+		}
+	}
+	return false
+}
+
+// IsIgnored returns true if the version specified should be ignored.
+func (c *versionConfig) isIgnored(checkVersion string) (bool, error) {
+	v, err := version.NewVersion(checkVersion)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse version: %w", err)
+	}
+
+	var cumulativeErr error
+	for _, ignoredVersion := range c.IgnoreVersions {
+		if strings.ToLower(ignoredVersion) == "all" {
+			return true, nil
+		}
+		c, err := version.NewConstraint(ignoredVersion)
+		if err != nil {
+			cumulativeErr = errors.Join(cumulativeErr, err)
+			continue
+		}
+
+		// Constraint checks without pre-releases will only match versions without pre-release.
+		// https://github.com/hashicorp/go-version/issues/130
+		if c.Check(v) {
+			return true, nil
+		}
+	}
+
+	return false, cumulativeErr
 }
 
 // LocalVersionData defines the json file that caches version lookup data.
@@ -117,12 +159,15 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 		lookuper = envconfig.OsLookuper()
 	}
 
-	optOutSettings, err := loadOptOutSettings(ctx, lookuper, params.AppID)
-	if err != nil {
-		return "", fmt.Errorf("failed to load opt out settings: %w", err)
+	var c versionConfig
+	if err := envconfig.ProcessWith(ctx, &envconfig.Config{
+		Target:   &c,
+		Lookuper: lookuper,
+	}); err != nil {
+		return "", fmt.Errorf("failed to process envconfig: %w", err)
 	}
 
-	if optOutSettings.IgnoreAllVersions {
+	if c.ignoreAll() {
 		return "", nil
 	}
 
@@ -134,14 +179,6 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 	}
 	if !fetchNewData {
 		return "", nil
-	}
-
-	var c versionConfig
-	if err := envconfig.ProcessWith(ctx, &envconfig.Config{
-		Target:   &c,
-		Lookuper: lookuper,
-	}); err != nil {
-		return "", fmt.Errorf("failed to process envconfig: %w", err)
 	}
 
 	// Use ParseRequestURI over Parse because Parse validation is more loose and will accept
@@ -161,6 +198,8 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
+	req.Header.Set("User-Agent", "github.com/abcxyz/abc-updater")
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -187,9 +226,9 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 		AppResponse:        result,
 	})
 
-	ignore, err := optOutSettings.isIgnored(result.CurrentVersion)
+	ignore, err := c.isIgnored(result.CurrentVersion)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error checking optout: %w", err)
 	}
 	if ignore {
 		return "", nil
@@ -205,7 +244,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 			AppName:       result.AppName,
 			RemoteVersion: remoteVersion.String(),
 			AppRepoURL:    result.AppRepoURL,
-			OptOutEnvVar:  ignoreVersionsEnvVar(result.AppID),
+			OptOutEnvVar:  strings.ToUpper(result.AppID) + "_" + ignoreVersionsEnvVar,
 		})
 		if err != nil {
 			return "", fmt.Errorf("failed to generate version check output: %w", err)

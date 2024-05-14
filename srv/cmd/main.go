@@ -72,18 +72,24 @@ func handleMetric(h *renderer.Renderer, db *pkg.MetricsDB) http.Handler {
 		allowedMetrics, err := db.GetAllowedMetrics(metrics.AppID)
 		if err != nil {
 			h.RenderJSON(w, http.StatusNotFound, err)
+			logger.WarnContext(r.Context(), "received metric request for unknown app")
 			return
 		}
 
+		// Currently we only expose an API for a single metric on the client,
+		// but I suspect multiple metrics will be added later on, and effort is
+		// about the same to support both.
 		for name, count := range metrics.Metrics {
 			if allowedMetrics.MetricAllowed(name) {
 				// TODO: does this leak sensitive information? Is default logger preferred.
 				metricLogger.InfoContext(r.Context(), "metric received", "appID", metrics.AppID, "appVersion", metrics.AppVersion, "installId", metrics.InstallID, "name", name, "count", count)
 			} else {
 				// TODO: do we want to return a warning to client or fail silently?
+				logger.WarnContext(r.Context(), "received unknown metric for app", "appID", metrics.AppID)
 			}
 		}
 
+		// Client does not currently read body, future changes are acceptable.
 		h.RenderJSON(w, http.StatusAccepted, map[string]string{"message": "ok"})
 	})
 }
