@@ -37,7 +37,7 @@ const (
 )
 
 type metricsConfig struct {
-	ServerURL string `env:"ABC_METRICS_URL, default=https://abc-updater-metrics.tycho.joonix.net"`
+	ServerURL string `env:"METRICS_URL, default=https://abc-updater-metrics.tycho.joonix.net"`
 	NoMetrics bool   `env:"NO_METRICS"`
 }
 
@@ -100,13 +100,13 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 	// Default to the environment loader.
 	if opts.lookuper == nil {
 		opts.lookuper = envconfig.OsLookuper()
+		opts.lookuper = envconfig.PrefixLookuper(strings.ToUpper(appID)+"_", opts.lookuper)
 	}
 
 	var c metricsConfig
-	prefixLookuper := envconfig.PrefixLookuper(strings.ToUpper(appID)+"_", opts.lookuper)
 	if err := envconfig.ProcessWith(ctx, &envconfig.Config{
 		Target:   &c,
-		Lookuper: prefixLookuper,
+		Lookuper: opts.lookuper,
 	}); err != nil {
 		return noopClient(), fmt.Errorf("failed to process envconfig: %w", err)
 	}
