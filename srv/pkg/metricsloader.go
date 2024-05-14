@@ -39,7 +39,6 @@ type ManifestResponse struct {
 // AllowedMetricsResponse is the per-app metrics.json file which lists the metrics
 // which can be recorded.
 type AllowedMetricsResponse struct {
-	AppID   string   `json:"appId"`
 	Metrics []string `json:"metrics"`
 }
 
