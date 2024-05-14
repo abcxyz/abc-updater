@@ -128,7 +128,7 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 	// Use ParseRequestURI over Parse because Parse validation is more loose and will accept
 	// things such as relative paths without a host.
 	if _, err := url.ParseRequestURI(c.ServerURL); err != nil {
-		return noopClient(), fmt.Errorf("failed to parse server url: %w", err)
+		return noopClient(), fmt.Errorf("failed to parse server URL: %w", err)
 	}
 
 	storedID, err := loadInstallID(appID, opts.installIDFileOverride)
