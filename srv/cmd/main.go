@@ -19,12 +19,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/sethvargo/go-envconfig"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/sethvargo/go-envconfig"
 
 	"github.com/abcxyz/abc-updater/srv/pkg"
 
@@ -54,7 +55,7 @@ type SendMetricRequest struct {
 }
 
 type metricsServerConfig struct {
-	ServerURL string `env:"ABC_UPDATER_METRICS_METADATA_URL,default=https://abc-updater.tycho.joonix.net"`
+	ServerURL string `env:"ABC_UPDATER_METRICS_METADATA_URL, default=https://abc-updater.tycho.joonix.net"`
 }
 
 func handleMetric(h *renderer.Renderer, db *pkg.MetricsDB) http.Handler {
