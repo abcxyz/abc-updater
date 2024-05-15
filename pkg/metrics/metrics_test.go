@@ -59,6 +59,7 @@ func defaultClient() *client {
 // to reproduce.
 func Test_New_unhappy(t *testing.T) {
 	t.Parallel()
+
 	cases := []struct {
 		name      string
 		appID     string
