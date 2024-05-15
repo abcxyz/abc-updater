@@ -102,7 +102,7 @@ func Test_New_unhappy(t *testing.T) {
 					t.Errorf("unexpected metricWriter value. Diff (-got +want): %s", diff)
 				}
 			}
-			if diff := testutil.DiffErrString(err, tc.wantError); len(diff) != 0 {
+			if diff := testutil.DiffErrString(err, tc.wantError); diff != "" {
 				t.Errorf("unexpected error: %s", diff)
 			}
 		})
@@ -142,11 +142,11 @@ func Test_New_Happy(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			
+
 			ctx := context.Background()
 
 			installPath := t.TempDir() + "/" + installIDFileName
-			if len(tc.installID) > 0 {
+			if tc.installID != "" {
 				if err := storeInstallID(testAppID, installPath, &InstallIDData{tc.installID}); err != nil {
 					t.Fatalf("test setup failed: %s", err.Error())
 				}
@@ -155,9 +155,10 @@ func Test_New_Happy(t *testing.T) {
 				"METRICS_URL": testServerURL,
 			}
 			lookupper := envconfig.MapLookuper(envVars)
-			opts := make([]Option, 0, 2)
-			opts = append(opts, WithLookuper(lookupper))
-			opts = append(opts, WithInstallIDFileOverride(installPath))
+			opts := []Option{
+				WithLookuper(lookupper),
+				WithInstallIDFileOverride(installPath),
+			}
 			if tc.client != nil {
 				opts = append(opts, WithHTTPClient(tc.client))
 			}
