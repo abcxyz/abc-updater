@@ -74,7 +74,7 @@ func WithLookuper(lookuper envconfig.Lookuper) Option {
 }
 
 // WithInstallIDFileOverride overrides the path where install ID file is stored.
-func WithInstallIDFileOverride(path string) Option { //nolint:unused
+func WithInstallIDFileOverride(path string) Option {
 	return func(o *options) *options {
 		o.installIDFileOverride = path
 		return o
@@ -90,7 +90,7 @@ type client struct {
 	AppID      string
 	Version    string
 	InstallID  string
-	HttpClient *http.Client
+	HTTPClient *http.Client
 	OptOut     bool
 	Config     *metricsConfig
 }
@@ -155,7 +155,7 @@ func New(ctx context.Context, appID, version string, opt ...Option) (MetricWrite
 		AppID:      appID,
 		Version:    version,
 		InstallID:  installID,
-		HttpClient: opts.httpClient,
+		HTTPClient: opts.httpClient,
 		Config:     &c,
 	}, nil
 }
@@ -201,7 +201,7 @@ func (c *client) WriteMetric(ctx context.Context, name string, count int) error 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := c.HttpClient.Do(req)
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to make http request: %w", err)
 	}
