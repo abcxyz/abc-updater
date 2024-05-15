@@ -41,14 +41,14 @@ const (
 	testServerURL = "https://example.com"
 )
 
-func defaultClient() Client {
-	return Client{
-		appID:      testAppID,
-		version:    testVersion,
-		installID:  testInstallID,
-		httpClient: &http.Client{Timeout: 1 * time.Second},
-		optOut:     false,
-		config: &metricsConfig{
+func defaultClient() client {
+	return client{
+		AppID:      testAppID,
+		Version:    testVersion,
+		InstallID:  testInstallID,
+		HTTPClient: &http.Client{Timeout: 1 * time.Second},
+		OptOut:     false,
+		Config: &metricsConfig{
 			ServerURL: testServerURL,
 			NoMetrics: false,
 		},
