@@ -73,13 +73,13 @@ func Test_New_unhappy(t *testing.T) {
 		{
 			name:      "opt_out_env_noop_no_err",
 			appID:     testAppID,
-			env:       map[string]string{strings.ToUpper(testAppID + "_NO_METRICS"): "TRUE"},
+			env:       map[string]string{"NO_METRICS": "TRUE"},
 			wantError: "",
 		},
 		{
 			name:      "bad_url_noop",
 			appID:     testAppID,
-			env:       map[string]string{strings.ToUpper(testAppID + "_ABC_METRICS_URL"): "htttpq://%foo*(*fg.com4/\\"},
+			env:       map[string]string{"METRICS_URL": "htttpq://%foo*(*fg.com4/\\"},
 			wantError: "failed to parse server URL",
 		},
 	}
@@ -145,7 +145,7 @@ func Test_New_Happy(t *testing.T) {
 				}
 			}
 			envVars := map[string]string{
-				strings.ToUpper(testAppID) + "_ABC_METRICS_URL": testServerURL,
+				"METRICS_URL": testServerURL,
 			}
 			lookupper := envconfig.MapLookuper(envVars)
 			opts := make([]Option, 0, 2)

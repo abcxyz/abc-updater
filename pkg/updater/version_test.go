@@ -87,7 +87,7 @@ func TestCheckAppVersionSync(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "v0.0.1",
 			env: map[string]string{
-				"ABC_UPDATER_URL": ts.URL,
+				"UPDATER_URL": ts.URL,
 			},
 			want: `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
 		},
@@ -96,7 +96,7 @@ func TestCheckAppVersionSync(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "v1.0.0",
 			env: map[string]string{
-				"ABC_UPDATER_URL": ts.URL,
+				"UPDATER_URL": ts.URL,
 			},
 			want: "",
 		},
@@ -105,7 +105,7 @@ func TestCheckAppVersionSync(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "0.0.1",
 			env: map[string]string{
-				"ABC_UPDATER_URL": ts.URL,
+				"UPDATER_URL": ts.URL,
 			},
 			want: "",
 			cached: &LocalVersionData{
@@ -118,7 +118,7 @@ func TestCheckAppVersionSync(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "0.0.1",
 			env: map[string]string{
-				"ABC_UPDATER_URL": ts.URL,
+				"UPDATER_URL": ts.URL,
 			},
 			want: `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
 			cached: &LocalVersionData{
@@ -131,7 +131,7 @@ func TestCheckAppVersionSync(t *testing.T) {
 			appID:   "bad_app",
 			version: "v1.0.0",
 			env: map[string]string{
-				"ABC_UPDATER_URL": ts.URL,
+				"UPDATER_URL": ts.URL,
 			},
 			want:    "",
 			wantErr: http.StatusText(http.StatusNotFound),
@@ -141,7 +141,7 @@ func TestCheckAppVersionSync(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "vab1.0.0.12.2",
 			env: map[string]string{
-				"ABC_UPDATER_URL": ts.URL,
+				"UPDATER_URL": ts.URL,
 			},
 			want:    "",
 			wantErr: "failed to parse check version \"vab1.0.0.12.2\"",
@@ -151,7 +151,7 @@ func TestCheckAppVersionSync(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "v0.1.0",
 			env: map[string]string{
-				"ABC_UPDATER_URL":    ts.URL,
+				"UPDATER_URL":        ts.URL,
 				ignoreVersionsEnvVar: "all",
 			},
 			want: "",
@@ -161,7 +161,7 @@ func TestCheckAppVersionSync(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "v0.1.0",
 			env: map[string]string{
-				"ABC_UPDATER_URL":    ts.URL,
+				"UPDATER_URL":        ts.URL,
 				ignoreVersionsEnvVar: "1.0.0",
 			},
 			want: "",
@@ -171,7 +171,7 @@ func TestCheckAppVersionSync(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "v0.0.1",
 			env: map[string]string{
-				"ABC_UPDATER_URL":    ts.URL,
+				"UPDATER_URL":        ts.URL,
 				ignoreVersionsEnvVar: "0.0.2",
 			},
 			want: `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
