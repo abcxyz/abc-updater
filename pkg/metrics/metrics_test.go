@@ -41,8 +41,8 @@ const (
 	testServerURL = "https://example.com"
 )
 
-func defaultClient() client {
-	return client{
+func defaultClient() *client {
+	return &client{
 		AppID:      testAppID,
 		Version:    testVersion,
 		InstallID:  testInstallID,
@@ -63,10 +63,11 @@ func Test_New_unhappy(t *testing.T) {
 		name      string
 		appID     string
 		env       map[string]string
+		want      *client
 		wantError string
 	}{
 		{
-			name:      "empty_app_id_noop",
+			name:      "empty_app_id_fails",
 			appID:     "",
 			wantError: "appID cannot be empty",
 		},
@@ -74,6 +75,7 @@ func Test_New_unhappy(t *testing.T) {
 			name:      "opt_out_env_noop_no_err",
 			appID:     testAppID,
 			env:       map[string]string{"NO_METRICS": "TRUE"},
+			want:      NoopWriter().(*client),
 			wantError: "",
 		},
 		{
@@ -88,15 +90,18 @@ func Test_New_unhappy(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
-			client, err := New(ctx, tc.appID, "1", WithLookuper(envconfig.MapLookuper(tc.env)))
+			c, err := New(ctx, tc.appID, "1", WithLookuper(envconfig.MapLookuper(tc.env)))
+			if c == nil && tc.want != nil {
+				t.Errorf("got nil MetricWriter but expected non-nil")
+			}
+			if c != nil {
+				gotV := c.(*client)
+				if diff := cmp.Diff(gotV, tc.want); diff != "" {
+					t.Errorf("unexpected metricWriter value. Diff (-got +want): %s", diff)
+				}
+			}
 			if diff := testutil.DiffErrString(err, tc.wantError); len(diff) != 0 {
 				t.Errorf("unexpected error: %s", diff)
-			}
-			if client == nil {
-				t.Errorf("client returned should be non-nil")
-			}
-			if !client.optOut {
-				t.Errorf("client returned should be optOut")
 			}
 		})
 	}
@@ -109,7 +114,7 @@ func Test_New_Happy(t *testing.T) {
 		name      string
 		client    *http.Client
 		installID string
-		want      Client
+		want      *client
 	}{
 		{
 			name: "happy_path_no_install_id",
@@ -124,9 +129,9 @@ func Test_New_Happy(t *testing.T) {
 			name:      "happy_path_with_custom_http_client",
 			installID: testInstallID,
 			client:    &http.Client{Timeout: 2},
-			want: func() Client {
+			want: func() *client {
 				c := defaultClient()
-				c.httpClient = &http.Client{Timeout: 2}
+				c.HTTPClient = &http.Client{Timeout: 2}
 				return c
 			}(),
 		},
@@ -150,12 +155,13 @@ func Test_New_Happy(t *testing.T) {
 			lookupper := envconfig.MapLookuper(envVars)
 			opts := make([]Option, 0, 2)
 			opts = append(opts, WithLookuper(lookupper))
-			opts = append(opts, withInstallIDFileOverride(installPath))
+			opts = append(opts, WithInstallIDFileOverride(installPath))
 			if tc.client != nil {
 				opts = append(opts, WithHTTPClient(tc.client))
 			}
 
-			got, err := New(ctx, testAppID, testVersion, opts...)
+			i, err := New(ctx, testAppID, testVersion, opts...)
+			got := i.(*client)
 
 			storedID, err := loadInstallID(testAppID, installPath)
 			if err != nil {
@@ -169,29 +175,15 @@ func Test_New_Happy(t *testing.T) {
 				t.Errorf("install id not saved")
 			} else {
 				// We cannot know ahead of time if generated, so copy from got to want.
-				tc.want.installID = got.installID
+				tc.want.InstallID = got.InstallID
 			}
-			if diff := cmp.Diff(got.installID, storedID.InstallID); diff != "" {
+
+			if diff := cmp.Diff(got.InstallID, storedID.InstallID); diff != "" {
 				t.Errorf("install id in client does not match stored. Diff (-client +stored): %s", diff)
 			}
 
-			if diff := cmp.Diff(got.appID, tc.want.appID); diff != "" {
-				t.Errorf("unexpected app id. Diff (-got +want): %s", diff)
-			}
-			if diff := cmp.Diff(got.version, tc.want.version); diff != "" {
-				t.Errorf("unexpected version. Diff (-got +want): %s", diff)
-			}
-			if diff := cmp.Diff(got.installID, tc.want.installID); diff != "" {
-				t.Errorf("unexpected install id. Diff (-got +want): %s", diff)
-			}
-			if diff := cmp.Diff(got.httpClient, tc.want.httpClient); diff != "" {
-				t.Errorf("unexpected httpClient. Diff (-got +want): %s", diff)
-			}
-			if diff := cmp.Diff(got.optOut, tc.want.optOut); diff != "" {
-				t.Errorf("unexpected optOut. Diff (-got +want): %s", diff)
-			}
-			if diff := cmp.Diff(got.config, tc.want.config); diff != "" {
-				t.Errorf("unexpected config. Diff (-got +want): %s", diff)
+			if diff := cmp.Diff(got, tc.want); diff != "" {
+				t.Errorf("unexpected client fields. Diff (-got +want): %s", diff)
 			}
 		})
 	}
@@ -247,7 +239,7 @@ func TestWriteMetric(t *testing.T) {
 		name                 string
 		metric               string
 		count                int
-		client               Client
+		client               *client
 		responseCodeOverride int
 		wantRequest          *SendMetricRequest
 		wantErr              string
@@ -268,9 +260,9 @@ func TestWriteMetric(t *testing.T) {
 			name:   "metric_opt_out_noop",
 			metric: "foo",
 			count:  1,
-			client: func() Client {
+			client: func() *client {
 				c := defaultClient()
-				c.optOut = true
+				c.OptOut = true
 				return c
 			}(),
 			wantRequest: nil,
@@ -314,7 +306,7 @@ func TestWriteMetric(t *testing.T) {
 			if tc.responseCodeOverride != 0 {
 				relativePath = fmt.Sprintf("%s/%d", relativePath, tc.responseCodeOverride)
 			}
-			tc.client.config.ServerURL = fmt.Sprintf("%s%s", ts.URL, relativePath)
+			tc.client.Config.ServerURL = fmt.Sprintf("%s%s", ts.URL, relativePath)
 
 			err := tc.client.WriteMetric(ctx, tc.metric, tc.count)
 
