@@ -36,6 +36,9 @@ const (
 	maxErrorResponseBytes = 2048
 )
 
+// Assert client implements MetricWriter.
+var _ MetricWriter = (*client)(nil)
+
 type metricsConfig struct {
 	ServerURL string `env:"METRICS_URL, default=https://abc-updater-metrics.tycho.joonix.net"`
 	NoMetrics bool   `env:"NO_METRICS"`
@@ -49,10 +52,11 @@ type options struct {
 	installIDFileOverride string
 }
 
-// Option is the metrics Client option type.
+// Option is the MetricWriter option type.
 type Option func(*options) *options
 
-// WithHTTPClient instructs the Client to use given http.Client when making calls.
+// WithHTTPClient instructs the MetricWriter to use given http.Client when
+// making calls.
 func WithHTTPClient(client *http.Client) Option {
 	return func(o *options) *options {
 		o.httpClient = client
@@ -60,7 +64,7 @@ func WithHTTPClient(client *http.Client) Option {
 	}
 }
 
-// WithLookuper instructs the Client to use given envconfig.Lookuper when
+// WithLookuper instructs the MetricWriter to use given envconfig.Lookuper when
 // loading configuration.
 func WithLookuper(lookuper envconfig.Lookuper) Option {
 	return func(o *options) *options {
@@ -69,28 +73,31 @@ func WithLookuper(lookuper envconfig.Lookuper) Option {
 	}
 }
 
-// For testing. Can expose externally if a need arises in the future.
-func withInstallIDFileOverride(path string) Option { //nolint:unused
+// WithInstallIDFileOverride overrides the path where install ID file is stored.
+func WithInstallIDFileOverride(path string) Option { //nolint:unused
 	return func(o *options) *options {
 		o.installIDFileOverride = path
 		return o
 	}
 }
 
-// Client is a client for reporting metrics about an application's usage.
-type Client struct {
-	appID      string
-	version    string
-	installID  string
-	httpClient *http.Client
-	optOut     bool
-	config     *metricsConfig
+// MetricWriter is a client for reporting metrics about an application's usage.
+type MetricWriter interface {
+	WriteMetric(ctx context.Context, name string, count int) error
 }
 
-// New provides a Client based on provided values and options.
-// Will always return a non-nil Client, in error cases it will have optOut
-// enabled making it effectively a noop.
-func New(ctx context.Context, appID, version string, opt ...Option) (*Client, error) {
+type client struct {
+	AppID      string
+	Version    string
+	InstallID  string
+	HttpClient *http.Client
+	OptOut     bool
+	Config     *metricsConfig
+}
+
+// New provides a client based on provided values and options.
+// Upon error recommended to use NoopWriter().
+func New(ctx context.Context, appID, version string, opt ...Option) (MetricWriter, error) {
 	opts := &options{}
 
 	for _, o := range opt {
@@ -108,12 +115,12 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 		Target:   &c,
 		Lookuper: opts.lookuper,
 	}); err != nil {
-		return noopClient(), fmt.Errorf("failed to process envconfig: %w", err)
+		return nil, fmt.Errorf("failed to process envconfig: %w", err)
 	}
 
 	// Short Circuit if user opted out of metrics.
 	if c.NoMetrics {
-		return noopClient(), nil
+		return NoopWriter(), nil
 	}
 
 	// Default to 1 second timeout httpClient.
@@ -124,7 +131,7 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 	// Use ParseRequestURI over Parse because Parse validation is more loose and will accept
 	// things such as relative paths without a host.
 	if _, err := url.ParseRequestURI(c.ServerURL); err != nil {
-		return noopClient(), fmt.Errorf("failed to parse server url: %w", err)
+		return nil, fmt.Errorf("failed to parse server url: %w", err)
 	}
 
 	storedID, err := loadInstallID(appID, opts.installIDFileOverride)
@@ -132,24 +139,24 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 	if err != nil || storedID == nil {
 		installID, err = generateInstallID()
 		if err != nil {
-			return noopClient(), err
+			return nil, err
 		}
 
 		if err = storeInstallID(appID, opts.installIDFileOverride, &InstallIDData{
 			InstallID: installID,
 		}); err != nil {
-			logging.FromContext(ctx).DebugContext(ctx, "error storing installID", "error", err.Error())
+			logging.FromContext(ctx).DebugContext(ctx, "error storing InstallID", "error", err.Error())
 		}
 	} else {
 		installID = storedID.InstallID
 	}
 
-	return &Client{
-		appID:      appID,
-		version:    version,
-		installID:  installID,
-		httpClient: opts.httpClient,
-		config:     &c,
+	return &client{
+		AppID:      appID,
+		Version:    version,
+		InstallID:  installID,
+		HttpClient: opts.httpClient,
+		Config:     &c,
 	}, nil
 }
 
@@ -171,22 +178,22 @@ type SendMetricRequest struct {
 // WriteMetric sends information about application usage. Noop if metrics
 // are opted out.
 // Accepts a context for cancellation.
-func (c *Client) WriteMetric(ctx context.Context, name string, count int) error {
-	if c.optOut {
+func (c *client) WriteMetric(ctx context.Context, name string, count int) error {
+	if c.OptOut {
 		return nil
 	}
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(&SendMetricRequest{
-		AppID:     c.appID,
-		Version:   c.version,
+		AppID:     c.AppID,
+		Version:   c.Version,
 		Metrics:   map[string]int{name: count},
-		InstallID: c.installID,
+		InstallID: c.InstallID,
 	}); err != nil {
 		return fmt.Errorf("failed to marshal metrics as json: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf(c.config.ServerURL+"/sendMetrics"), &buf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf(c.Config.ServerURL+"/sendMetrics"), &buf)
 	if err != nil {
 		return fmt.Errorf("failed to create http request: %w", err)
 	}
@@ -194,7 +201,7 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int) error 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.HttpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to make http request: %w", err)
 	}
@@ -214,6 +221,7 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int) error 
 	return nil
 }
 
-func noopClient() *Client {
-	return &Client{optOut: true}
+// NoopWriter returns a MetricWriter which is opted-out and will not send metrics.
+func NoopWriter() MetricWriter {
+	return &client{OptOut: true}
 }
