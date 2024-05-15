@@ -110,7 +110,7 @@ func realMain(ctx context.Context) error {
 	}
 
 	var c metricsServerConfig
-	if err := envconfig.Process(ctx, &envconfig.Config{
+	if err := envconfig.ProcessWith(ctx, &envconfig.Config{
 		Target:   &c,
 		Lookuper: envconfig.OsLookuper(),
 	}); err != nil {
