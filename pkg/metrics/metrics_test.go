@@ -90,6 +90,7 @@ func Test_New_unhappy(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			ctx := context.Background()
 			c, err := New(ctx, tc.appID, "1", WithLookuper(envconfig.MapLookuper(tc.env)))
 			if c == nil && tc.want != nil {
