@@ -86,8 +86,8 @@ func Test_New_unhappy(t *testing.T) {
 			wantError: "failed to parse server URL",
 		},
 	}
+
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
@@ -139,9 +139,9 @@ func Test_New_Happy(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			
 			ctx := context.Background()
 
 			installPath := t.TempDir() + "/" + installIDFileName
@@ -195,7 +195,7 @@ func TestWriteMetric(t *testing.T) {
 
 	// Record calls made to test server. Separate per test using a per-test
 	// unique id in URL.
-	reqMap := sync.Map{}
+	var reqMap sync.Map
 
 	// Request body is intentionally leaked to allow for inspection in test cases.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -297,8 +297,8 @@ func TestWriteMetric(t *testing.T) {
 			wantErr: "received 500 response",
 		},
 	}
+
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
