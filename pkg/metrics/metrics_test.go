@@ -154,9 +154,9 @@ func Test_New_Happy(t *testing.T) {
 			envVars := map[string]string{
 				"METRICS_URL": testServerURL,
 			}
-			lookupper := envconfig.MapLookuper(envVars)
+			lookuper := envconfig.MapLookuper(envVars)
 			opts := []Option{
-				WithLookuper(lookupper),
+				WithLookuper(lookuper),
 				WithInstallIDFileOverride(installPath),
 			}
 			if tc.client != nil {
