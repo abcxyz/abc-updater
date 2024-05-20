@@ -41,160 +41,160 @@ const (
 	testServerURL = "https://example.com"
 )
 
-func defaultClient() Client {
-	return Client{
-		appID:      testAppID,
-		version:    testVersion,
-		installID:  testInstallID,
-		httpClient: &http.Client{Timeout: 1 * time.Second},
-		optOut:     false,
-		config: &metricsConfig{
+func defaultClient() *client {
+	return &client{
+		AppID:      testAppID,
+		Version:    testVersion,
+		InstallID:  testInstallID,
+		HTTPClient: &http.Client{Timeout: 1 * time.Second},
+		OptOut:     false,
+		Config: &metricsConfig{
 			ServerURL: testServerURL,
 			NoMetrics: false,
 		},
 	}
 }
 
-// Not all failure cases can be easily tested, will test subset that is easy
-// to reproduce.
-func Test_New_unhappy(t *testing.T) {
+func TestNew(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		name      string
-		appID     string
-		env       map[string]string
-		wantError string
-	}{
-		{
-			name:      "empty_app_id_noop",
-			appID:     "",
-			wantError: "appID cannot be empty",
-		},
-		{
-			name:      "opt_out_env_noop_no_err",
-			appID:     testAppID,
-			env:       map[string]string{"NO_METRICS": "TRUE"},
-			wantError: "",
-		},
-		{
-			name:      "bad_url_noop",
-			appID:     testAppID,
-			env:       map[string]string{"METRICS_URL": "htttpq://%foo*(*fg.com4/\\"},
-			wantError: "failed to parse server URL",
-		},
-	}
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := context.Background()
-			client, err := New(ctx, tc.appID, "1", WithLookuper(envconfig.MapLookuper(tc.env)))
-			if diff := testutil.DiffErrString(err, tc.wantError); len(diff) != 0 {
-				t.Errorf("unexpected error: %s", diff)
-			}
-			if client == nil {
-				t.Errorf("client returned should be non-nil")
-			}
-			if !client.optOut {
-				t.Errorf("client returned should be optOut")
-			}
-		})
-	}
-}
+	t.Run("happy_path", func(t *testing.T) {
+		t.Parallel()
 
-func Test_New_Happy(t *testing.T) {
-	t.Parallel()
+		cases := []struct {
+			name      string
+			client    *http.Client
+			installID string
+			want      *client
+		}{
+			{
+				name: "happy_path_no_install_id",
+				want: defaultClient(),
+			},
+			{
+				name:      "happy_path_with_install_id",
+				installID: testInstallID,
+				want:      defaultClient(),
+			},
+			{
+				name:      "happy_path_with_custom_http_client",
+				installID: testInstallID,
+				client:    &http.Client{Timeout: 2},
+				want: func() *client {
+					c := defaultClient()
+					c.HTTPClient = &http.Client{Timeout: 2}
+					return c
+				}(),
+			},
+		}
 
-	cases := []struct {
-		name      string
-		client    *http.Client
-		installID string
-		want      Client
-	}{
-		{
-			name: "happy_path_no_install_id",
-			want: defaultClient(),
-		},
-		{
-			name:      "happy_path_with_install_id",
-			installID: testInstallID,
-			want:      defaultClient(),
-		},
-		{
-			name:      "happy_path_with_custom_http_client",
-			installID: testInstallID,
-			client:    &http.Client{Timeout: 2},
-			want: func() Client {
-				c := defaultClient()
-				c.httpClient = &http.Client{Timeout: 2}
-				return c
-			}(),
-		},
-	}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := context.Background()
+				ctx := context.Background()
 
-			installPath := t.TempDir() + "/" + installIDFileName
-			if len(tc.installID) > 0 {
-				if err := storeInstallID(testAppID, installPath, &InstallIDData{tc.installID}); err != nil {
-					t.Fatalf("test setup failed: %s", err.Error())
+				installPath := t.TempDir() + "/" + installIDFileName
+				if tc.installID != "" {
+					if err := storeInstallID(testAppID, installPath, &InstallIDData{tc.installID}); err != nil {
+						t.Fatalf("test setup failed: %s", err.Error())
+					}
 				}
-			}
-			envVars := map[string]string{
-				"METRICS_URL": testServerURL,
-			}
-			lookupper := envconfig.MapLookuper(envVars)
-			opts := make([]Option, 0, 2)
-			opts = append(opts, WithLookuper(lookupper))
-			opts = append(opts, withInstallIDFileOverride(installPath))
-			if tc.client != nil {
-				opts = append(opts, WithHTTPClient(tc.client))
-			}
-
-			got, err := New(ctx, testAppID, testVersion, opts...)
-
-			storedID, err := loadInstallID(testAppID, installPath)
-			if err != nil {
-				t.Fatalf("could not load install ID for checking side effects")
-			}
-			if len(tc.installID) > 0 {
-				if diff := cmp.Diff(storedID.InstallID, tc.installID); diff != "" {
-					t.Errorf("install id changed. Diff (-got +want): %s", diff)
+				envVars := map[string]string{
+					"METRICS_URL": testServerURL,
 				}
-			} else if storedID.InstallID == "" {
-				t.Errorf("install id not saved")
-			} else {
-				// We cannot know ahead of time if generated, so copy from got to want.
-				tc.want.installID = got.installID
-			}
-			if diff := cmp.Diff(got.installID, storedID.InstallID); diff != "" {
-				t.Errorf("install id in client does not match stored. Diff (-client +stored): %s", diff)
-			}
+				lookuper := envconfig.MapLookuper(envVars)
+				opts := []Option{
+					WithLookuper(lookuper),
+					WithInstallIDFileOverride(installPath),
+				}
+				if tc.client != nil {
+					opts = append(opts, WithHTTPClient(tc.client))
+				}
 
-			if diff := cmp.Diff(got.appID, tc.want.appID); diff != "" {
-				t.Errorf("unexpected app id. Diff (-got +want): %s", diff)
-			}
-			if diff := cmp.Diff(got.version, tc.want.version); diff != "" {
-				t.Errorf("unexpected version. Diff (-got +want): %s", diff)
-			}
-			if diff := cmp.Diff(got.installID, tc.want.installID); diff != "" {
-				t.Errorf("unexpected install id. Diff (-got +want): %s", diff)
-			}
-			if diff := cmp.Diff(got.httpClient, tc.want.httpClient); diff != "" {
-				t.Errorf("unexpected httpClient. Diff (-got +want): %s", diff)
-			}
-			if diff := cmp.Diff(got.optOut, tc.want.optOut); diff != "" {
-				t.Errorf("unexpected optOut. Diff (-got +want): %s", diff)
-			}
-			if diff := cmp.Diff(got.config, tc.want.config); diff != "" {
-				t.Errorf("unexpected config. Diff (-got +want): %s", diff)
-			}
-		})
-	}
+				i, err := New(ctx, testAppID, testVersion, opts...)
+				if err != nil {
+					t.Errorf("unexpected error: %s", err.Error())
+				}
+				got := i.(*client) //nolint:forcetypeassert
+
+				storedID, err := loadInstallID(testAppID, installPath)
+				if err != nil {
+					t.Fatalf("could not load install ID for checking side effects")
+				}
+				if len(tc.installID) > 0 {
+					if diff := cmp.Diff(storedID.InstallID, tc.installID); diff != "" {
+						t.Errorf("install id changed. Diff (-got +want): %s", diff)
+					}
+				} else if storedID.InstallID == "" {
+					t.Errorf("install id not saved")
+				} else {
+					// We cannot know ahead of time if generated, so copy from got to want.
+					tc.want.InstallID = got.InstallID
+				}
+
+				if diff := cmp.Diff(got.InstallID, storedID.InstallID); diff != "" {
+					t.Errorf("install id in client does not match stored. Diff (-client +stored): %s", diff)
+				}
+
+				if diff := cmp.Diff(got, tc.want); diff != "" {
+					t.Errorf("unexpected client fields. Diff (-got +want): %s", diff)
+				}
+			})
+		}
+	})
+	// Not all failure cases can be easily tested, will test subset that is easy
+	// to reproduce.
+	t.Run("unhappy_path", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct { //nolint:forcetypeassert
+			name      string
+			appID     string
+			env       map[string]string
+			want      *client
+			wantError string
+		}{
+			{
+				name:      "empty_app_id_fails",
+				appID:     "",
+				wantError: "appID cannot be empty",
+			},
+			{
+				name:      "opt_out_env_noop_no_err",
+				appID:     testAppID,
+				env:       map[string]string{"NO_METRICS": "TRUE"},
+				want:      NoopWriter().(*client),
+				wantError: "",
+			},
+			{
+				name:      "bad_url_noop",
+				appID:     testAppID,
+				env:       map[string]string{"METRICS_URL": "htttpq://%foo*(*fg.com4/\\"},
+				wantError: "failed to parse server URL",
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := context.Background()
+				c, err := New(ctx, tc.appID, "1", WithLookuper(envconfig.MapLookuper(tc.env)))
+				if c == nil && tc.want != nil {
+					t.Errorf("got nil MetricWriter but expected non-nil")
+				}
+				if c != nil {
+					gotV := c.(*client) //nolint:forcetypeassert
+					if diff := cmp.Diff(gotV, tc.want); diff != "" {
+						t.Errorf("unexpected metricWriter value. Diff (-got +want): %s", diff)
+					}
+				}
+				if diff := testutil.DiffErrString(err, tc.wantError); diff != "" {
+					t.Errorf("unexpected error: %s", diff)
+				}
+			})
+		}
+	})
 }
 
 func TestWriteMetric(t *testing.T) {
@@ -202,7 +202,7 @@ func TestWriteMetric(t *testing.T) {
 
 	// Record calls made to test server. Separate per test using a per-test
 	// unique id in URL.
-	reqMap := sync.Map{}
+	var reqMap sync.Map
 
 	// Request body is intentionally leaked to allow for inspection in test cases.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -247,7 +247,7 @@ func TestWriteMetric(t *testing.T) {
 		name                 string
 		metric               string
 		count                int
-		client               Client
+		client               *client
 		responseCodeOverride int
 		wantRequest          *SendMetricRequest
 		wantErr              string
@@ -268,9 +268,9 @@ func TestWriteMetric(t *testing.T) {
 			name:   "metric_opt_out_noop",
 			metric: "foo",
 			count:  1,
-			client: func() Client {
+			client: func() *client {
 				c := defaultClient()
-				c.optOut = true
+				c.OptOut = true
 				return c
 			}(),
 			wantRequest: nil,
@@ -304,17 +304,17 @@ func TestWriteMetric(t *testing.T) {
 			wantErr: "received 500 response",
 		},
 	}
+
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			ctx := context.Background()
-			relativePath := fmt.Sprintf("/%d", rand.Uint64())
+			relativePath := fmt.Sprintf("/%d", rand.Uint64()) //nolint:gosec
 			if tc.responseCodeOverride != 0 {
 				relativePath = fmt.Sprintf("%s/%d", relativePath, tc.responseCodeOverride)
 			}
-			tc.client.config.ServerURL = fmt.Sprintf("%s%s", ts.URL, relativePath)
+			tc.client.Config.ServerURL = fmt.Sprintf("%s%s", ts.URL, relativePath)
 
 			err := tc.client.WriteMetric(ctx, tc.metric, tc.count)
 
@@ -326,7 +326,7 @@ func TestWriteMetric(t *testing.T) {
 				if !ok {
 					t.Errorf("no http request received, expected body of: %v", *tc.wantRequest)
 				}
-				request := val.(*http.Request)
+				request := val.(*http.Request) //nolint:forcetypeassert
 				defer request.Body.Close()
 
 				var got SendMetricRequest
