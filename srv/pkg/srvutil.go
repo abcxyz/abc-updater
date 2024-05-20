@@ -19,9 +19,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/abcxyz/pkg/renderer"
 	"io"
 	"net/http"
+
+	"github.com/abcxyz/pkg/renderer"
 )
 
 // DecodeRequest provides a common implementation of JSON unmarshaling with
