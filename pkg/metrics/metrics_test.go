@@ -60,7 +60,7 @@ func defaultClient() *client {
 func Test_New_unhappy(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
+	cases := []struct { //nolint:forcetypeassert
 		name      string
 		appID     string
 		env       map[string]string
