@@ -97,7 +97,7 @@ func Test_New_unhappy(t *testing.T) {
 				t.Errorf("got nil MetricWriter but expected non-nil")
 			}
 			if c != nil {
-				gotV := c.(*client)
+				gotV := c.(*client) //nolint:forcetypeassert
 				if diff := cmp.Diff(gotV, tc.want); diff != "" {
 					t.Errorf("unexpected metricWriter value. Diff (-got +want): %s", diff)
 				}
@@ -164,7 +164,10 @@ func Test_New_Happy(t *testing.T) {
 			}
 
 			i, err := New(ctx, testAppID, testVersion, opts...)
-			got := i.(*client)
+			if err != nil {
+				t.Errorf("unexpected error: %s", err.Error())
+			}
+			got := i.(*client) //nolint:forcetypeassert
 
 			storedID, err := loadInstallID(testAppID, installPath)
 			if err != nil {
@@ -305,7 +308,7 @@ func TestWriteMetric(t *testing.T) {
 			t.Parallel()
 
 			ctx := context.Background()
-			relativePath := fmt.Sprintf("/%d", rand.Uint64())
+			relativePath := fmt.Sprintf("/%d", rand.Uint64()) //nolint:gosec
 			if tc.responseCodeOverride != 0 {
 				relativePath = fmt.Sprintf("%s/%d", relativePath, tc.responseCodeOverride)
 			}
@@ -321,7 +324,7 @@ func TestWriteMetric(t *testing.T) {
 				if !ok {
 					t.Errorf("no http request received, expected body of: %v", *tc.wantRequest)
 				}
-				request := val.(*http.Request)
+				request := val.(*http.Request) //nolint:forcetypeassert
 				defer request.Body.Close()
 
 				var got SendMetricRequest
