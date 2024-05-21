@@ -44,7 +44,8 @@ type CheckVersionParams struct {
 	// Should be of form vMAJOR[.MINOR[.PATCH[-PRERELEASE][+BUILD]]] (e.g., v1.0.1)
 	Version string
 
-	// An optional Lookuper to load envconfig structs. Will default to os environment variables.
+	// An optional Lookuper to load envconfig structs. Will default to os environment variables
+	// prefixed with toUpper(AppID).
 	Lookuper envconfig.Lookuper
 
 	// Optional override for cached file location. Mostly intended for testing.
@@ -64,7 +65,7 @@ type AppResponse struct {
 }
 
 type versionConfig struct {
-	ServerURL      string   `env:"ABC_UPDATER_URL,default=https://abc-updater.tycho.joonix.net"`
+	ServerURL      string   `env:"UPDATER_URL,default=https://abc-updater.tycho.joonix.net"`
 	IgnoreVersions []string `env:"IGNORE_VERSIONS"`
 }
 
@@ -158,6 +159,7 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 	lookuper := params.Lookuper
 	if lookuper == nil {
 		lookuper = envconfig.OsLookuper()
+		lookuper = envconfig.PrefixLookuper(strings.ToUpper(params.AppID)+"_", lookuper)
 	}
 
 	var c versionConfig

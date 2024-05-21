@@ -35,6 +35,9 @@ FOO_BAR_123_IGNORE_VERSIONS=ALL
 FOO_BAR_123_IGNORE_VERSIONS=1.9.3,2.0.3
 ```
 
+Implementer can provide their own lookuper in method params, which will
+look up without using prefix. For Example It would just be `IGNORE_VERSIONS`.
+
 ### Limitations
 Currently, only the newest version is fetched. This means that if you are on
 `1.3.0` and some fix `1.4.0` was released after a `2.0` was released, you would

@@ -55,7 +55,7 @@ type SendMetricRequest struct {
 }
 
 type metricsServerConfig struct {
-	ServerURL string `env:"ABC_UPDATER_METRICS_METADATA_URL,default=https://abc-updater.tycho.joonix.net"`
+	ServerURL string `env:"ABC_UPDATER_METRICS_METADATA_URL, default=https://abc-updater.tycho.joonix.net"`
 }
 
 func handleMetric(h *renderer.Renderer, db pkg.MetricsLookuper) http.Handler {
@@ -110,7 +110,7 @@ func realMain(ctx context.Context) error {
 	}
 
 	var c metricsServerConfig
-	if err := envconfig.Process(ctx, &envconfig.Config{
+	if err := envconfig.ProcessWith(ctx, &envconfig.Config{
 		Target:   &c,
 		Lookuper: envconfig.OsLookuper(),
 	}); err != nil {

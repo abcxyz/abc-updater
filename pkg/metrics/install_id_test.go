@@ -22,9 +22,9 @@ func Test_generateInstallID(t *testing.T) {
 	t.Parallel()
 	got, err := generateInstallID()
 	if err != nil {
-		t.Errorf("generating install ID should never return an err: %s", err.Error())
+		t.Fatalf("generating install ID should never return an err: %s", err.Error())
 	}
-	if len(got) != 12 {
-		t.Errorf("unexpected id length got=%d want=%d", len(got), 12)
+	if got, want := len(got), 12; got != want {
+		t.Errorf("unexpected id length got=%d want=%d", got, want)
 	}
 }
