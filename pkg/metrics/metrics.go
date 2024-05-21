@@ -95,9 +95,13 @@ type client struct {
 	Config     *metricsConfig
 }
 
-// New provides a client based on provided values and options.
+// New provides a MetricWriter based on provided values and options.
 // Upon error recommended to use NoopWriter().
 func New(ctx context.Context, appID, version string, opt ...Option) (MetricWriter, error) {
+	if len(appID) == 0 {
+		return nil, fmt.Errorf("appID cannot be empty")
+	}
+
 	opts := &options{}
 
 	for _, o := range opt {
@@ -131,7 +135,7 @@ func New(ctx context.Context, appID, version string, opt ...Option) (MetricWrite
 	// Use ParseRequestURI over Parse because Parse validation is more loose and will accept
 	// things such as relative paths without a host.
 	if _, err := url.ParseRequestURI(c.ServerURL); err != nil {
-		return nil, fmt.Errorf("failed to parse server url: %w", err)
+		return nil, fmt.Errorf("failed to parse server URL: %w", err)
 	}
 
 	storedID, err := loadInstallID(appID, opts.installIDFileOverride)
