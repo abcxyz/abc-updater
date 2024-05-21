@@ -10,9 +10,14 @@ This server has a few parts:
 ## Allowed Metrics
 Defined in `metrics.json` file hosted next to version info for updater.
 
+`manifest.json` file at root directory of version folder includes a list of
+all applications which accept metrics, and is used by server to know which paths
+to load.
+
+Metric definitions are loaded on startup and updated periodically.
+
 Example:
 ```
-# TODO: should types be defined/enforced?
 {
 	app_id: abc
 	allowed_metrics: [
@@ -21,12 +26,4 @@ Example:
 	]
 }
 ```
-
-Server will look up the relevant `metrics.json` file when fielding a request.
-The results of this lookup will be cached (including 404).
-
-TBD: How to avoid DOS from lookups of arbitrary application names. This could
-cause expensive lookups, as well as overfill the cache.
-
-TBD: Is there an easy way to get a mainifest of all apps from the update server?
 
