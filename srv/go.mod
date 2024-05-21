@@ -7,6 +7,8 @@ toolchain go1.22.1
 require (
 	github.com/abcxyz/pkg v1.0.4
 	github.com/google/go-cmp v0.6.0
+	github.com/sethvargo/go-envconfig v1.0.0
+	github.com/thejerf/slogassert v0.3.2
 )
 
 require (

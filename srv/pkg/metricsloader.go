@@ -31,6 +31,9 @@ const (
 	maxErrorResponseBytes = 2048
 )
 
+// Assert MetricsDB satisfies MetricsLookuper
+var _ MetricsLookuper = (*MetricsDB)(nil)
+
 // ManifestResponse is the json file served to list all apps which have metrics.
 type ManifestResponse struct {
 	MetricsApps []string `json:"metricsApps"`
@@ -40,6 +43,11 @@ type ManifestResponse struct {
 // which can be recorded.
 type AllowedMetricsResponse struct {
 	Metrics []string `json:"metrics"`
+}
+
+type MetricsLookuper interface {
+	Update(ctx context.Context, params *MetricsLoadParams) error
+	GetAllowedMetrics(appID string) (*AppMetrics, error)
 }
 
 type MetricsDB struct {

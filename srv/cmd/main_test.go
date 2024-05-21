@@ -15,114 +15,129 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-	"time"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/abcxyz/abc-updater/srv/pkg"
+	"github.com/thejerf/slogassert"
 
 	"github.com/abcxyz/pkg/logging"
 	"github.com/abcxyz/pkg/renderer"
 )
 
-func TestRealMain(t *testing.T) {
-	t.Parallel()
-	ctx := logging.WithLogger(context.Background(), logging.TestLogger(t))
-	ctx, done := context.WithCancel(ctx)
-	defer done()
+// Assert testMetricsDB satisfies pkg.MetricsLookuper
+var _ pkg.MetricsLookuper = (*testMetricsDB)(nil)
 
-	var realMainErr error
-	finishedCh := make(chan struct{})
-	go func() {
-		defer close(finishedCh)
-		realMainErr = realMain(ctx)
-	}()
+type testMetricsDB struct {
+	apps map[string]*pkg.AppMetrics
+}
 
-	time.Sleep(100 * time.Millisecond)                                // wait for server startup
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%s/", *port)) //nolint:noctx
+// Update is a Noop.
+func (d *testMetricsDB) Update(ctx context.Context, params *pkg.MetricsLoadParams) error {
+	return nil
+}
+
+func (db *testMetricsDB) GetAllowedMetrics(appID string) (*pkg.AppMetrics, error) {
+	if db.apps == nil {
+		// TODO: this should probably log an error and bubble up as a 5xx
+		return nil, fmt.Errorf("no metric definition found for app %s", appID)
+	}
+	v, ok := db.apps[appID]
+	// TODO: this should bubble up as a 404
+	if !ok {
+		return nil, fmt.Errorf("no metric definition found for app %s", appID)
+	}
+	return v, nil
+}
+
+func marshalRequest(t testing.TB, req *SendMetricRequest) io.Reader {
+	t.Helper()
+	b, err := json.Marshal(req)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("could not marshal json: %s", err.Error())
 	}
-	defer resp.Body.Close()
-
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	want := "hello world"
-	if !strings.Contains(string(b), want) {
-		t.Errorf("unexpected response: (-got,+want)\n%s", cmp.Diff(string(b), want))
-	}
-
-	// stop server
-	done()
-
-	// Wait for done
-	select {
-	case <-finishedCh:
-	case <-time.After(time.Second):
-		t.Fatalf("expected server to be stopped")
-	}
-
-	if realMainErr != nil {
-		t.Errorf("realMain(): %v", realMainErr)
-	}
+	return bytes.NewReader(b)
 }
 
 func Test_handleMetric(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name string
-	}
-}
-
-func TestHandleHello(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	h := renderer.NewTesting(ctx, t, nil)
-
-	cases := []struct {
-		name string
-		want string
+		name       string
+		db         pkg.MetricsLookuper
+		body       io.Reader
+		wantStatus int
+		wantLogs   map[*slogassert.LogMessageMatch]int
 	}{
+		// TODO: more test cases if by some miracle this ugly thing doesn't get ousted in code review
 		{
-			name: "success",
-			want: "hello world",
+			name: "happy_single_metric",
+			db: &testMetricsDB{apps: map[string]*pkg.AppMetrics{"test": {
+				AppID:   "test",
+				Allowed: map[string]interface{}{"foo": struct{}{}, "bar": struct{}{}},
+			}}},
+			body: marshalRequest(t, &SendMetricRequest{
+				AppID:      "test",
+				AppVersion: "1.0",
+				Metrics:    map[string]int64{"foo": 1},
+				InstallID:  "asdf",
+			}),
+			wantStatus: 202,
+			wantLogs: map[*slogassert.LogMessageMatch]int{&slogassert.LogMessageMatch{
+				Message: "metric received",
+				Level:   slog.LevelInfo,
+				Attrs: map[string]any{
+					"metric.appID":      "test",
+					"metric.appVersion": "1.0",
+					"metric.name":       "foo",
+					"metric.count":      1,
+					"metric.installID":  "asdf",
+				},
+				AllAttrsMatch: false,
+			}: 1},
 		},
 	}
 	for _, tc := range cases {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			server := httptest.NewServer(handleHello(h))
-			t.Cleanup(func() { server.Close() })
-
-			req, err := http.NewRequestWithContext(ctx, "GET", server.URL, nil)
+			ctx := context.Background()
+			h, err := renderer.New(ctx, nil,
+				renderer.WithOnError(func(err error) {
+					t.Fatalf("failed to render: %s", err.Error())
+				}))
 			if err != nil {
-				t.Fatal(err)
+				t.Fatalf("failed to setup test: %s", err.Error())
+			}
+			req := httptest.NewRequest(http.MethodPost, "/sendMetrics", tc.body)
+			req.Header.Set("User-Agent", "github.com/abcxyz/abc-updater")
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/json")
+			logHandler := slogassert.New(t, slog.LevelInfo, nil)
+			req = req.WithContext(logging.WithLogger(req.Context(), slog.New(logHandler)))
+
+			w := httptest.NewRecorder()
+			handleMetric(h, tc.db).ServeHTTP(w, req)
+			response := w.Result()
+
+			if got, want := response.StatusCode, tc.wantStatus; got != want {
+				t.Errorf("unexpected response code. got %d want %d", got, want)
 			}
 
-			resp, err := server.Client().Do(req)
-			if err != nil {
-				t.Fatal(err)
+			// Normally we wouldn't test log messages, but as that is the way metrics
+			// are being exported, it seems important to do so here.
+			for k, v := range tc.wantLogs {
+				// TODO: I don't like that this panics if there are no matches, would rather handle error myself
+				// I have https://github.com/thejerf/slogassert/pull/5 to try and fix it.
+				if got, want := logHandler.AssertSomePrecise(*k), v; got != want {
+					t.Errorf("Unexpected number of logs containing [%v]. Got [%d], want [%d]", k, got, want)
+				}
 			}
-			defer resp.Body.Close()
 
-			b, err := io.ReadAll(resp.Body)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !strings.Contains(string(b), tc.want) {
-				t.Errorf("unexpected response: (-got,+want)\n%s", cmp.Diff(string(b), tc.want))
-			}
 		})
 	}
 }

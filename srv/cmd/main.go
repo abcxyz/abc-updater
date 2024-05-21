@@ -19,12 +19,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/sethvargo/go-envconfig"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/sethvargo/go-envconfig"
 
 	"github.com/abcxyz/abc-updater/srv/pkg"
 
@@ -57,7 +58,7 @@ type metricsServerConfig struct {
 	ServerURL string `env:"ABC_UPDATER_METRICS_METADATA_URL,default=https://abc-updater.tycho.joonix.net"`
 }
 
-func handleMetric(h *renderer.Renderer, db *pkg.MetricsDB) http.Handler {
+func handleMetric(h *renderer.Renderer, db pkg.MetricsLookuper) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logger := logging.FromContext(r.Context())
 		metricLogger := logger.WithGroup("metric")
@@ -82,7 +83,7 @@ func handleMetric(h *renderer.Renderer, db *pkg.MetricsDB) http.Handler {
 		for name, count := range metrics.Metrics {
 			if allowedMetrics.MetricAllowed(name) {
 				// TODO: does this leak sensitive information? Is default logger preferred.
-				metricLogger.InfoContext(r.Context(), "metric received", "appID", metrics.AppID, "appVersion", metrics.AppVersion, "installId", metrics.InstallID, "name", name, "count", count)
+				metricLogger.InfoContext(r.Context(), "metric received", "appID", metrics.AppID, "appVersion", metrics.AppVersion, "installID", metrics.InstallID, "name", name, "count", count)
 			} else {
 				// TODO: do we want to return a warning to client or fail silently?
 				logger.WarnContext(r.Context(), "received unknown metric for app", "appID", metrics.AppID)
