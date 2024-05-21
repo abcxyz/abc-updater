@@ -115,7 +115,10 @@ func TestNew(t *testing.T) {
 				if err != nil {
 					t.Errorf("unexpected error: %s", err.Error())
 				}
-				got := i.(*client) //nolint:forcetypeassert
+				got, ok := i.(*client)
+				if !ok {
+					t.Fatal("Expected New to return client, but cast failed.")
+				}
 
 				storedID, err := loadInstallID(testAppID, installPath)
 				if err != nil {
@@ -184,7 +187,10 @@ func TestNew(t *testing.T) {
 					t.Errorf("got nil MetricWriter but expected non-nil")
 				}
 				if c != nil {
-					gotV := c.(*client) //nolint:forcetypeassert
+					gotV, ok := c.(*client)
+					if !ok {
+						t.Fatal("Expected New to return client, but cast failed.")
+					}
 					if diff := cmp.Diff(gotV, tc.want); diff != "" {
 						t.Errorf("unexpected metricWriter value. Diff (-got +want): %s", diff)
 					}
@@ -326,7 +332,10 @@ func TestWriteMetric(t *testing.T) {
 				if !ok {
 					t.Errorf("no http request received, expected body of: %v", *tc.wantRequest)
 				}
-				request := val.(*http.Request) //nolint:forcetypeassert
+				request, ok := val.(*http.Request)
+				if !ok {
+					t.Fatal("Expected *httpRequest in sync map, but cast failed.")
+				}
 				defer request.Body.Close()
 
 				var got SendMetricRequest
