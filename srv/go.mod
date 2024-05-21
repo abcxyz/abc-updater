@@ -4,10 +4,7 @@ go 1.22
 
 toolchain go1.22.1
 
-require (
-	github.com/abcxyz/pkg v1.0.4
-	github.com/google/go-cmp v0.6.0
-)
+require github.com/abcxyz/pkg v1.0.4
 
 require (
 	github.com/golang/protobuf v1.5.3 // indirect

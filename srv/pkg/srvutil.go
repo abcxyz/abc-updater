@@ -33,12 +33,12 @@ import (
 //
 // It automatically closes the request body to prevent leaking.
 // TODO: move this to abcxyz/pkg
-func DecodeRequest[T any](ctx context.Context, w http.ResponseWriter, r *http.Request, h *renderer.Renderer) (req *T, err error) {
-	req = new(T)
+func DecodeRequest[T any](ctx context.Context, w http.ResponseWriter, r *http.Request, h *renderer.Renderer) (*T, error) {
+	req := new(T)
 
 	t := r.Header.Get("content-type")
 	if exp := "application/json"; len(t) < 16 || t[:16] != exp {
-		err = fmt.Errorf("invalid content type: content-type %q is not %q", t, exp)
+		err := fmt.Errorf("invalid content type: content-type %q is not %q", t, exp)
 		h.RenderJSON(w, http.StatusUnsupportedMediaType, err)
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func DecodeRequest[T any](ctx context.Context, w http.ResponseWriter, r *http.Re
 		}
 	}
 	if d.More() {
-		err = fmt.Errorf("body contained more than one json object")
+		err := fmt.Errorf("body contained more than one json object")
 		h.RenderJSON(w, http.StatusBadRequest, err)
 		return nil, err
 	}
