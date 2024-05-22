@@ -25,7 +25,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/abcxyz/abc-updater/srv/pkg"
+	"github.com/abcxyz/abc-updater/pkg/server"
 
 	"github.com/abcxyz/pkg/logging"
 	"github.com/abcxyz/pkg/renderer"
@@ -82,7 +82,7 @@ func handleMetric(h *renderer.Renderer) http.Handler {
 		metricLogger := logger.WithGroup("metric")
 		logger.InfoContext(r.Context(), "handling request")
 
-		metrics, err := pkg.DecodeRequest[SendMetricRequest](r.Context(), w, r, h)
+		metrics, err := server.DecodeRequest[SendMetricRequest](r.Context(), w, r, h)
 		if err != nil {
 			// Error response already handled by pkg.DecodeRequest.
 			return
