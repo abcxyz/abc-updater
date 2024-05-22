@@ -27,28 +27,13 @@ import (
 
 	"github.com/sethvargo/go-envconfig"
 
-	"github.com/abcxyz/abc-updater/srv/pkg"
+	"github.com/abcxyz/abc-updater/pkg/metrics"
+	"github.com/abcxyz/abc-updater/pkg/server"
 
 	"github.com/abcxyz/pkg/logging"
 	"github.com/abcxyz/pkg/renderer"
 	"github.com/abcxyz/pkg/serving"
 )
-
-// TODO: figure out how to make modules so this doesn't get re-defined multiple places
-type SendMetricRequest struct {
-	// The ID of the application to check.
-	AppID string `json:"appId"`
-
-	// The version of the app to check for updates.
-	// Should be of form vMAJOR[.MINOR[.PATCH[-PRERELEASE][+BUILD]]] (e.g., v1.0.1)
-	AppVersion string `json:"appVersion"`
-
-	// TODO: this is a bit different from design doc, is it ok?
-	Metrics map[string]int64 `json:"metrics"`
-
-	// InstallID. Expected to be a hex 8-4-4-4-12 formatted v4 UUID.
-	InstallID string `json:"installId"`
-}
 
 type metricsServerConfig struct {
 	ServerURL               string        `env:"ABC_UPDATER_METRICS_METADATA_URL, default=https://abc-updater.tycho.joonix.net"`
@@ -56,13 +41,13 @@ type metricsServerConfig struct {
 	Port                    string        `env:"ABC_UPDATER_METRICS_SERVER_PORT, default=8080"`
 }
 
-func handleMetric(h *renderer.Renderer, db pkg.MetricsLookuper) http.Handler {
+func handleMetric(h *renderer.Renderer, db server.MetricsLookuper) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logger := logging.FromContext(r.Context())
 		metricLogger := logger.WithGroup("metric")
 		logger.InfoContext(r.Context(), "handling request")
 
-		metrics, err := pkg.DecodeRequest[SendMetricRequest](r.Context(), w, r, h)
+		metrics, err := server.DecodeRequest[metrics.SendMetricRequest](r.Context(), w, r, h)
 		if err != nil {
 			// Error response already handled by pkg.DecodeRequest.
 			return
@@ -118,12 +103,12 @@ func realMain(ctx context.Context) error {
 		return fmt.Errorf("invalid config: METADATA_UPDATE_FREQUENCY must be at least 100ms")
 	}
 
-	dbUpdateParams := &pkg.MetricsLoadParams{
+	dbUpdateParams := &server.MetricsLoadParams{
 		ServerURL: c.ServerURL,
 		Client:    &http.Client{Timeout: 2 * time.Second},
 	}
 
-	db := &pkg.MetricsDB{}
+	db := &server.MetricsDB{}
 	if err := db.Update(ctx, dbUpdateParams); err != nil {
 		return fmt.Errorf("failed to load metrics definitions on startup: %w", err)
 	}

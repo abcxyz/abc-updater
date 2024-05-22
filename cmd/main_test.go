@@ -25,7 +25,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/abcxyz/abc-updater/srv/pkg"
+	"github.com/abcxyz/abc-updater/pkg/metrics"
+	"github.com/abcxyz/abc-updater/pkg/server"
 	"github.com/thejerf/slogassert"
 
 	"github.com/abcxyz/pkg/logging"
@@ -33,18 +34,18 @@ import (
 )
 
 // Assert testMetricsDB satisfies pkg.MetricsLookuper
-var _ pkg.MetricsLookuper = (*testMetricsDB)(nil)
+var _ server.MetricsLookuper = (*testMetricsDB)(nil)
 
 type testMetricsDB struct {
-	apps map[string]*pkg.AppMetrics
+	apps map[string]*server.AppMetrics
 }
 
 // Update is a Noop.
-func (d *testMetricsDB) Update(ctx context.Context, params *pkg.MetricsLoadParams) error {
+func (d *testMetricsDB) Update(ctx context.Context, params *server.MetricsLoadParams) error {
 	return nil
 }
 
-func (db *testMetricsDB) GetAllowedMetrics(appID string) (*pkg.AppMetrics, error) {
+func (db *testMetricsDB) GetAllowedMetrics(appID string) (*server.AppMetrics, error) {
 	if db.apps == nil {
 		// TODO: this should probably log an error and bubble up as a 5xx
 		return nil, fmt.Errorf("no metric definition found for app %s", appID)
@@ -57,7 +58,7 @@ func (db *testMetricsDB) GetAllowedMetrics(appID string) (*pkg.AppMetrics, error
 	return v, nil
 }
 
-func marshalRequest(t testing.TB, req *SendMetricRequest) io.Reader {
+func marshalRequest(t testing.TB, req *metrics.SendMetricRequest) io.Reader {
 	t.Helper()
 	b, err := json.Marshal(req)
 	if err != nil {
@@ -70,7 +71,7 @@ func Test_handleMetric(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name       string
-		db         pkg.MetricsLookuper
+		db         server.MetricsLookuper
 		body       io.Reader
 		wantStatus int
 		wantLogs   map[*slogassert.LogMessageMatch]int
@@ -78,11 +79,11 @@ func Test_handleMetric(t *testing.T) {
 		// TODO: more test cases if by some miracle this ugly thing doesn't get ousted in code review
 		{
 			name: "happy_single_metric",
-			db: &testMetricsDB{apps: map[string]*pkg.AppMetrics{"test": {
+			db: &testMetricsDB{apps: map[string]*server.AppMetrics{"test": {
 				AppID:   "test",
 				Allowed: map[string]interface{}{"foo": struct{}{}, "bar": struct{}{}},
 			}}},
-			body: marshalRequest(t, &SendMetricRequest{
+			body: marshalRequest(t, &metrics.SendMetricRequest{
 				AppID:      "test",
 				AppVersion: "1.0",
 				Metrics:    map[string]int64{"foo": 1},

@@ -83,12 +83,12 @@ func WithInstallIDFileOverride(path string) Option {
 
 // MetricWriter is a client for reporting metrics about an application's usage.
 type MetricWriter interface {
-	WriteMetric(ctx context.Context, name string, count int) error
+	WriteMetric(ctx context.Context, name string, count int64) error
 }
 
 type client struct {
 	AppID      string
-	Version    string
+	AppVersion string
 	InstallID  string
 	HTTPClient *http.Client
 	OptOut     bool
@@ -157,7 +157,7 @@ func New(ctx context.Context, appID, version string, opt ...Option) (MetricWrite
 
 	return &client{
 		AppID:      appID,
-		Version:    version,
+		AppVersion: version,
 		InstallID:  installID,
 		HTTPClient: opts.httpClient,
 		Config:     &c,
@@ -170,10 +170,10 @@ type SendMetricRequest struct {
 
 	// The version of the app to check for updates.
 	// Should be of form vMAJOR[.MINOR[.PATCH[-PRERELEASE][+BUILD]]] (e.g., v1.0.1)
-	Version string `json:"version"`
+	AppVersion string `json:"appVersion"`
 
 	// Only single item is used now, map used for flexibility in the future.
-	Metrics map[string]int `json:"metrics"`
+	Metrics map[string]int64 `json:"metrics"`
 
 	// InstallID. Expected to be a random base64 value.
 	InstallID string `json:"installId"`
@@ -182,17 +182,17 @@ type SendMetricRequest struct {
 // WriteMetric sends information about application usage. Noop if metrics
 // are opted out.
 // Accepts a context for cancellation.
-func (c *client) WriteMetric(ctx context.Context, name string, count int) error {
+func (c *client) WriteMetric(ctx context.Context, name string, count int64) error {
 	if c.OptOut {
 		return nil
 	}
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(&SendMetricRequest{
-		AppID:     c.AppID,
-		Version:   c.Version,
-		Metrics:   map[string]int{name: count},
-		InstallID: c.InstallID,
+		AppID:      c.AppID,
+		AppVersion: c.AppVersion,
+		Metrics:    map[string]int64{name: count},
+		InstallID:  c.InstallID,
 	}); err != nil {
 		return fmt.Errorf("failed to marshal metrics as json: %w", err)
 	}
