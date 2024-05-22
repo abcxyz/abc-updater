@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package pkg
 
 import (
 	"bytes"
@@ -25,7 +25,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/abcxyz/abc-updater/srv/pkg"
 	"github.com/thejerf/slogassert"
 
 	"github.com/abcxyz/pkg/logging"
@@ -33,18 +32,18 @@ import (
 )
 
 // Assert testMetricsDB satisfies pkg.MetricsLookuper
-var _ pkg.MetricsLookuper = (*testMetricsDB)(nil)
+var _ MetricsLookuper = (*testMetricsDB)(nil)
 
 type testMetricsDB struct {
-	apps map[string]*pkg.AppMetrics
+	apps map[string]*AppMetrics
 }
 
 // Update is a Noop.
-func (d *testMetricsDB) Update(ctx context.Context, params *pkg.MetricsLoadParams) error {
+func (d *testMetricsDB) Update(ctx context.Context, params *MetricsLoadParams) error {
 	return nil
 }
 
-func (db *testMetricsDB) GetAllowedMetrics(appID string) (*pkg.AppMetrics, error) {
+func (db *testMetricsDB) GetAllowedMetrics(appID string) (*AppMetrics, error) {
 	if db.apps == nil {
 		// TODO: this should probably log an error and bubble up as a 5xx
 		return nil, fmt.Errorf("no metric definition found for app %s", appID)
@@ -70,7 +69,7 @@ func Test_handleMetric(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name       string
-		db         pkg.MetricsLookuper
+		db         MetricsLookuper
 		body       io.Reader
 		wantStatus int
 		wantLogs   map[*slogassert.LogMessageMatch]int
@@ -78,7 +77,7 @@ func Test_handleMetric(t *testing.T) {
 		// TODO: more test cases if by some miracle this ugly thing doesn't get ousted in code review
 		{
 			name: "happy_single_metric",
-			db: &testMetricsDB{apps: map[string]*pkg.AppMetrics{"test": {
+			db: &testMetricsDB{apps: map[string]*AppMetrics{"test": {
 				AppID:   "test",
 				Allowed: map[string]interface{}{"foo": struct{}{}, "bar": struct{}{}},
 			}}},
@@ -121,7 +120,7 @@ func Test_handleMetric(t *testing.T) {
 			req = req.WithContext(logging.WithLogger(req.Context(), slog.New(logHandler)))
 
 			w := httptest.NewRecorder()
-			handleMetric(h, tc.db).ServeHTTP(w, req)
+			HandleMetric(h, tc.db).ServeHTTP(w, req)
 			response := w.Result()
 
 			if got, want := response.StatusCode, tc.wantStatus; got != want {

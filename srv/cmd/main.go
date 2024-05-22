@@ -34,63 +34,10 @@ import (
 	"github.com/abcxyz/pkg/serving"
 )
 
-// TODO: figure out how to make modules so this doesn't get re-defined multiple places
-type SendMetricRequest struct {
-	// The ID of the application to check.
-	AppID string `json:"appId"`
-
-	// The version of the app to check for updates.
-	// Should be of form vMAJOR[.MINOR[.PATCH[-PRERELEASE][+BUILD]]] (e.g., v1.0.1)
-	AppVersion string `json:"appVersion"`
-
-	// TODO: this is a bit different from design doc, is it ok?
-	Metrics map[string]int64 `json:"metrics"`
-
-	// InstallID. Expected to be a hex 8-4-4-4-12 formatted v4 UUID.
-	InstallID string `json:"installId"`
-}
-
 type metricsServerConfig struct {
 	ServerURL               string        `env:"ABC_UPDATER_METRICS_METADATA_URL, default=https://abc-updater.tycho.joonix.net"`
 	MetadataUpdateFrequency time.Duration `env:"ABC_UPDATER_METRICS_METADATA_UPDATE_FREQUENCY, default=1m"`
 	Port                    string        `env:"ABC_UPDATER_METRICS_SERVER_PORT, default=8080"`
-}
-
-func handleMetric(h *renderer.Renderer, db pkg.MetricsLookuper) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger := logging.FromContext(r.Context())
-		metricLogger := logger.WithGroup("metric")
-		logger.InfoContext(r.Context(), "handling request")
-
-		metrics, err := pkg.DecodeRequest[SendMetricRequest](r.Context(), w, r, h)
-		if err != nil {
-			// Error response already handled by pkg.DecodeRequest.
-			return
-		}
-
-		allowedMetrics, err := db.GetAllowedMetrics(metrics.AppID)
-		if err != nil {
-			h.RenderJSON(w, http.StatusNotFound, err)
-			logger.WarnContext(r.Context(), "received metric request for unknown app")
-			return
-		}
-
-		// Currently we only expose an API for a single metric on the client,
-		// but I suspect multiple metrics will be added later on, and effort is
-		// about the same to support both.
-		for name, count := range metrics.Metrics {
-			if allowedMetrics.MetricAllowed(name) {
-				// TODO: does this leak sensitive information? Is default logger preferred.
-				metricLogger.InfoContext(r.Context(), "metric received", "appID", metrics.AppID, "appVersion", metrics.AppVersion, "installID", metrics.InstallID, "name", name, "count", count)
-			} else {
-				// TODO: do we want to return a warning to client or fail silently?
-				logger.WarnContext(r.Context(), "received unknown metric for app", "appID", metrics.AppID)
-			}
-		}
-
-		// Client does not currently read body, future changes are acceptable.
-		h.RenderJSON(w, http.StatusAccepted, map[string]string{"message": "ok"})
-	})
 }
 
 // realMain creates an example backend HTTP server.
@@ -147,7 +94,7 @@ func realMain(ctx context.Context) error {
 	}()
 
 	mux := http.NewServeMux()
-	mux.Handle("POST /sendMetrics", handleMetric(h, db))
+	mux.Handle("POST /sendMetrics", pkg.HandleMetric(h, db))
 
 	httpServer := &http.Server{
 		Addr:              c.Port,
