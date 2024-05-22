@@ -34,10 +34,6 @@ import (
 	"github.com/abcxyz/pkg/serving"
 )
 
-const defaultPort = "8080"
-
-var port = flag.String("port", defaultPort, "Specifies server port to listen on.")
-
 // TODO: figure out how to make modules so this doesn't get re-defined multiple places
 type SendMetricRequest struct {
 	// The ID of the application to check.
@@ -57,6 +53,7 @@ type SendMetricRequest struct {
 type metricsServerConfig struct {
 	ServerURL               string        `env:"ABC_UPDATER_METRICS_METADATA_URL, default=https://abc-updater.tycho.joonix.net"`
 	MetadataUpdateFrequency time.Duration `env:"ABC_UPDATER_METRICS_METADATA_UPDATE_FREQUENCY, default=1m"`
+	Port                    string        `env:"ABC_UPDATER_METRICS_SERVER_PORT, default=8080"`
 }
 
 func handleMetric(h *renderer.Renderer, db *pkg.MetricsDB) http.Handler {
@@ -153,13 +150,13 @@ func realMain(ctx context.Context) error {
 	mux.Handle("POST /sendMetrics", handleMetric(h, db))
 
 	httpServer := &http.Server{
-		Addr:              *port,
+		Addr:              c.Port,
 		Handler:           mux,
 		ReadHeaderTimeout: 2 * time.Second,
 	}
 
-	logger.InfoContext(ctx, "starting server", "port", *port)
-	server, err := serving.New(*port)
+	logger.InfoContext(ctx, "starting server", "port", c.Port)
+	server, err := serving.New(c.Port)
 	if err != nil {
 		return fmt.Errorf("error creating server: %w", err)
 	}
