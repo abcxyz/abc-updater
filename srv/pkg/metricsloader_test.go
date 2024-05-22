@@ -13,3 +13,37 @@
 // limitations under the License.
 
 package pkg
+
+import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+const testAppID = "testApp"
+
+func setupTestServer(t testing.TB, map[string]) *http.Server {
+	t.Helper()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/manifest.json":
+			// TODO: manifest response
+		case r.Method == http.MethodGet && r.URL.Path == "/testApp/metrics.json":
+			// TODO: metrics response
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "%s\n", string(sampleAppResponse))
+	}))
+
+	t.Cleanup(func() {
+		ts.Close()
+	})
+	return ts
+}
