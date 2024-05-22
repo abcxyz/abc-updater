@@ -55,7 +55,8 @@ type SendMetricRequest struct {
 }
 
 type metricsServerConfig struct {
-	ServerURL string `env:"ABC_UPDATER_METRICS_METADATA_URL, default=https://abc-updater.tycho.joonix.net"`
+	ServerURL               string        `env:"ABC_UPDATER_METRICS_METADATA_URL, default=https://abc-updater.tycho.joonix.net"`
+	MetadataUpdateFrequency time.Duration `env:"ABC_UPDATER_METRICS_METADATA_UPDATE_FREQUENCY, default=1m"`
 }
 
 func handleMetric(h *renderer.Renderer, db *pkg.MetricsDB) http.Handler {
@@ -116,6 +117,9 @@ func realMain(ctx context.Context) error {
 	}); err != nil {
 		return fmt.Errorf("failed to process envconfig: %w", err)
 	}
+	if c.MetadataUpdateFrequency.Milliseconds() < 100 {
+		return fmt.Errorf("invalid config: METADATA_UPDATE_FREQUENCY must be at least 100ms")
+	}
 
 	dbUpdateParams := &pkg.MetricsLoadParams{
 		ServerURL: c.ServerURL,
@@ -126,6 +130,24 @@ func realMain(ctx context.Context) error {
 	if err := db.Update(ctx, dbUpdateParams); err != nil {
 		return fmt.Errorf("failed to load metrics definitions on startup: %w", err)
 	}
+
+	// Fetch new metadata for DB occasionally.
+	done := make(chan bool)
+	ticker := time.NewTicker(c.MetadataUpdateFrequency)
+	defer ticker.Stop()
+	defer func() { done <- true }()
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				logger.DebugContext(ctx, "Updating metrics definitions.")
+				// Error logged by db.
+				_ = db.Update(ctx, dbUpdateParams)
+			}
+		}
+	}()
 
 	mux := http.NewServeMux()
 	mux.Handle("POST /sendMetrics", handleMetric(h, db))
@@ -153,6 +175,7 @@ func main() {
 	// creates a context that exits on interrupt signal.
 	ctx, done := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer done()
+	ctx = logging.WithLogger(ctx, logging.NewFromEnv("ABC_UPDATER_METRICS_"))
 	logger := logging.FromContext(ctx)
 
 	flag.Parse()
