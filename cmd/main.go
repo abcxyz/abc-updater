@@ -27,7 +27,8 @@ import (
 
 	"github.com/sethvargo/go-envconfig"
 
-	"github.com/abcxyz/abc-updater/srv/pkg"
+	"github.com/abcxyz/abc-updater/pkg/metrics"
+	"github.com/abcxyz/abc-updater/pkg/server"
 
 	"github.com/abcxyz/pkg/logging"
 	"github.com/abcxyz/pkg/renderer"
@@ -65,12 +66,12 @@ func realMain(ctx context.Context) error {
 		return fmt.Errorf("invalid config: METADATA_UPDATE_FREQUENCY must be at least 100ms")
 	}
 
-	dbUpdateParams := &pkg.MetricsLoadParams{
+	dbUpdateParams := &server.MetricsLoadParams{
 		ServerURL: c.ServerURL,
 		Client:    &http.Client{Timeout: 2 * time.Second},
 	}
 
-	db := &pkg.MetricsDB{}
+	db := &server.MetricsDB{}
 	if err := db.Update(ctx, dbUpdateParams); err != nil {
 		return fmt.Errorf("failed to load metrics definitions on startup: %w", err)
 	}
@@ -94,7 +95,7 @@ func realMain(ctx context.Context) error {
 	}()
 
 	mux := http.NewServeMux()
-	mux.Handle("POST /sendMetrics", pkg.HandleMetric(h, db))
+	mux.Handle("POST /sendMetrics", server.HandleMetric(h, db))
 
 	httpServer := &http.Server{
 		Addr:              c.Port,

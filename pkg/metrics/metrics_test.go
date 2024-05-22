@@ -44,7 +44,7 @@ const (
 func defaultClient() *client {
 	return &client{
 		AppID:      testAppID,
-		Version:    testVersion,
+		AppVersion: testVersion,
 		InstallID:  testInstallID,
 		HTTPClient: &http.Client{Timeout: 1 * time.Second},
 		OptOut:     false,
@@ -252,7 +252,7 @@ func TestWriteMetric(t *testing.T) {
 	cases := []struct {
 		name                 string
 		metric               string
-		count                int
+		count                int64
 		client               *client
 		responseCodeOverride int
 		wantRequest          *SendMetricRequest
@@ -264,10 +264,10 @@ func TestWriteMetric(t *testing.T) {
 			count:  1,
 			client: defaultClient(),
 			wantRequest: &SendMetricRequest{
-				AppID:     testAppID,
-				Version:   testVersion,
-				Metrics:   map[string]int{"foo": 1},
-				InstallID: testInstallID,
+				AppID:      testAppID,
+				AppVersion: testVersion,
+				Metrics:    map[string]int64{"foo": 1},
+				InstallID:  testInstallID,
 			},
 		},
 		{
@@ -288,10 +288,10 @@ func TestWriteMetric(t *testing.T) {
 			client:               defaultClient(),
 			responseCodeOverride: http.StatusBadRequest,
 			wantRequest: &SendMetricRequest{
-				AppID:     testAppID,
-				Version:   testVersion,
-				Metrics:   map[string]int{"foo": 1},
-				InstallID: testInstallID,
+				AppID:      testAppID,
+				AppVersion: testVersion,
+				Metrics:    map[string]int64{"foo": 1},
+				InstallID:  testInstallID,
 			},
 			wantErr: "received 400 response",
 		},
@@ -302,10 +302,10 @@ func TestWriteMetric(t *testing.T) {
 			client:               defaultClient(),
 			responseCodeOverride: http.StatusInternalServerError,
 			wantRequest: &SendMetricRequest{
-				AppID:     testAppID,
-				Version:   testVersion,
-				Metrics:   map[string]int{"foo": 1},
-				InstallID: testInstallID,
+				AppID:      testAppID,
+				AppVersion: testVersion,
+				Metrics:    map[string]int64{"foo": 1},
+				InstallID:  testInstallID,
 			},
 			wantErr: "received 500 response",
 		},

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package pkg
+package server
 
 import (
 	"bytes"
@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/abcxyz/abc-updater/pkg/metrics"
 	"github.com/thejerf/slogassert"
 
 	"github.com/abcxyz/pkg/logging"
@@ -56,7 +57,7 @@ func (db *testMetricsDB) GetAllowedMetrics(appID string) (*AppMetrics, error) {
 	return v, nil
 }
 
-func marshalRequest(t testing.TB, req *SendMetricRequest) io.Reader {
+func marshalRequest(t testing.TB, req *metrics.SendMetricRequest) io.Reader {
 	t.Helper()
 	b, err := json.Marshal(req)
 	if err != nil {
@@ -81,7 +82,7 @@ func Test_handleMetric(t *testing.T) {
 				AppID:   "test",
 				Allowed: map[string]interface{}{"foo": struct{}{}, "bar": struct{}{}},
 			}}},
-			body: marshalRequest(t, &SendMetricRequest{
+			body: marshalRequest(t, &metrics.SendMetricRequest{
 				AppID:      "test",
 				AppVersion: "1.0",
 				Metrics:    map[string]int64{"foo": 1},
