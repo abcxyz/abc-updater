@@ -34,10 +34,6 @@ import (
 	"github.com/abcxyz/pkg/serving"
 )
 
-const defaultPort = "8080"
-
-var port = flag.String("port", defaultPort, "Specifies server port to listen on.")
-
 // TODO: figure out how to make modules so this doesn't get re-defined multiple places
 type SendMetricRequest struct {
 	// The ID of the application to check.
@@ -55,7 +51,9 @@ type SendMetricRequest struct {
 }
 
 type metricsServerConfig struct {
-	ServerURL string `env:"ABC_UPDATER_METRICS_METADATA_URL, default=https://abc-updater.tycho.joonix.net"`
+	ServerURL               string        `env:"ABC_UPDATER_METRICS_METADATA_URL, default=https://abc-updater.tycho.joonix.net"`
+	MetadataUpdateFrequency time.Duration `env:"ABC_UPDATER_METRICS_METADATA_UPDATE_FREQUENCY, default=1m"`
+	Port                    string        `env:"ABC_UPDATER_METRICS_SERVER_PORT, default=8080"`
 }
 
 func handleMetric(h *renderer.Renderer, db pkg.MetricsLookuper) http.Handler {
@@ -116,6 +114,9 @@ func realMain(ctx context.Context) error {
 	}); err != nil {
 		return fmt.Errorf("failed to process envconfig: %w", err)
 	}
+	if c.MetadataUpdateFrequency.Milliseconds() < 100 {
+		return fmt.Errorf("invalid config: METADATA_UPDATE_FREQUENCY must be at least 100ms")
+	}
 
 	dbUpdateParams := &pkg.MetricsLoadParams{
 		ServerURL: c.ServerURL,
@@ -127,17 +128,35 @@ func realMain(ctx context.Context) error {
 		return fmt.Errorf("failed to load metrics definitions on startup: %w", err)
 	}
 
+	// Fetch new metadata for DB occasionally.
+	done := make(chan bool)
+	ticker := time.NewTicker(c.MetadataUpdateFrequency)
+	defer ticker.Stop()
+	defer func() { done <- true }()
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				logger.DebugContext(ctx, "Updating metrics definitions.")
+				// Error logged by db.
+				_ = db.Update(ctx, dbUpdateParams)
+			}
+		}
+	}()
+
 	mux := http.NewServeMux()
 	mux.Handle("POST /sendMetrics", handleMetric(h, db))
 
 	httpServer := &http.Server{
-		Addr:              *port,
+		Addr:              c.Port,
 		Handler:           mux,
 		ReadHeaderTimeout: 2 * time.Second,
 	}
 
-	logger.InfoContext(ctx, "starting server", "port", *port)
-	server, err := serving.New(*port)
+	logger.InfoContext(ctx, "starting server", "port", c.Port)
+	server, err := serving.New(c.Port)
 	if err != nil {
 		return fmt.Errorf("error creating server: %w", err)
 	}
@@ -153,6 +172,7 @@ func main() {
 	// creates a context that exits on interrupt signal.
 	ctx, done := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer done()
+	ctx = logging.WithLogger(ctx, logging.NewFromEnv("ABC_UPDATER_METRICS_"))
 	logger := logging.FromContext(ctx)
 
 	flag.Parse()
