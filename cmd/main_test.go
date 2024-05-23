@@ -48,11 +48,9 @@ func (db *testMetricsDB) Update(ctx context.Context, params *server.MetricsLoadP
 
 func (db *testMetricsDB) GetAllowedMetrics(appID string) (*server.AppMetrics, error) {
 	if db.apps == nil {
-		// TODO: this should probably log an error and bubble up as a 5xx
 		return nil, fmt.Errorf("no metric definition found for app %s", appID)
 	}
 	v, ok := db.apps[appID]
-	// TODO: this should bubble up as a 404
 	if !ok {
 		return nil, fmt.Errorf("no metric definition found for app %s", appID)
 	}
