@@ -19,17 +19,23 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/abcxyz/pkg/renderer"
 )
 
 const testAppID = "testApp"
 
-func setupTestServer(t testing.TB, map[string]) *http.Server {
+func setupTestServer(t testing.TB, allowed map[string]AllowedMetricsResponse) *http.Server {
 	t.Helper()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/manifest.json":
-			// TODO: manifest response
-		case r.Method == http.MethodGet && r.URL.Path == "/testApp/metrics.json":
+			appList := make([]string, 0, len(allowed))
+			for k, _ := range allowed {
+				appList = append(appList, k)
+			}
+			renderer.New(r.Context())
+		case r.Method == http.MethodGet && r.URL.Path == "/metrics.json":
 			// TODO: metrics response
 		default:
 			w.WriteHeader(http.StatusNotFound)

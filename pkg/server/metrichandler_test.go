@@ -26,13 +26,13 @@ import (
 	"testing"
 
 	"github.com/abcxyz/abc-updater/pkg/metrics"
-	"github.com/thejerf/slogassert"
 
 	"github.com/abcxyz/pkg/logging"
 	"github.com/abcxyz/pkg/renderer"
+	"github.com/thejerf/slogassert"
 )
 
-// Assert testMetricsDB satisfies pkg.MetricsLookuper
+// Assert testMetricsDB satisfies pkg.MetricsLookuper.
 var _ MetricsLookuper = (*testMetricsDB)(nil)
 
 type testMetricsDB struct {
@@ -40,7 +40,7 @@ type testMetricsDB struct {
 }
 
 // Update is a Noop.
-func (d *testMetricsDB) Update(ctx context.Context, params *MetricsLoadParams) error {
+func (db *testMetricsDB) Update(ctx context.Context, params *server.MetricsLoadParams) error {
 	return nil
 }
 
@@ -57,11 +57,11 @@ func (db *testMetricsDB) GetAllowedMetrics(appID string) (*AppMetrics, error) {
 	return v, nil
 }
 
-func marshalRequest(t testing.TB, req *metrics.SendMetricRequest) io.Reader {
-	t.Helper()
+func marshalRequest(tb testing.TB, req *metrics.SendMetricRequest) io.Reader {
+	tb.Helper()
 	b, err := json.Marshal(req)
 	if err != nil {
-		t.Fatalf("could not marshal json: %s", err.Error())
+		tb.Fatalf("could not marshal json: %s", err.Error())
 	}
 	return bytes.NewReader(b)
 }
@@ -89,15 +89,15 @@ func Test_handleMetric(t *testing.T) {
 				InstallID:  "asdf",
 			}),
 			wantStatus: 202,
-			wantLogs: map[*slogassert.LogMessageMatch]int{&slogassert.LogMessageMatch{
+			wantLogs: map[*slogassert.LogMessageMatch]int{{
 				Message: "metric received",
 				Level:   slog.LevelInfo,
 				Attrs: map[string]any{
-					"metric.appID":      "test",
-					"metric.appVersion": "1.0",
-					"metric.name":       "foo",
-					"metric.count":      1,
-					"metric.installID":  "asdf",
+					"metric.app_id":      "test",
+					"metric.app_version": "1.0",
+					"metric.name":        "foo",
+					"metric.count":       1,
+					"metric.install_id":  "asdf",
 				},
 				AllAttrsMatch: false,
 			}: 1},
@@ -105,6 +105,7 @@ func Test_handleMetric(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := context.Background()
 			h, err := renderer.New(ctx, nil,
 				renderer.WithOnError(func(err error) {
@@ -123,6 +124,7 @@ func Test_handleMetric(t *testing.T) {
 			w := httptest.NewRecorder()
 			HandleMetric(h, tc.db).ServeHTTP(w, req)
 			response := w.Result()
+			defer response.Body.Close()
 
 			if got, want := response.StatusCode, tc.wantStatus; got != want {
 				t.Errorf("unexpected response code. got %d want %d", got, want)
@@ -137,7 +139,6 @@ func Test_handleMetric(t *testing.T) {
 					t.Errorf("Unexpected number of logs containing [%v]. Got [%d], want [%d]", k, got, want)
 				}
 			}
-
 		})
 	}
 }
