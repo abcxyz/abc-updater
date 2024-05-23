@@ -25,6 +25,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/sethvargo/go-envconfig"
+
 	"github.com/abcxyz/abc-updater/pkg/metrics"
 	"github.com/abcxyz/abc-updater/pkg/server"
 	"github.com/abcxyz/pkg/logging"
@@ -32,35 +34,13 @@ import (
 	"github.com/abcxyz/pkg/serving"
 )
 
-const defaultPort = "8080"
-
-var port = flag.String("port", defaultPort, "Specifies server port to listen on.")
-
-type AppMetrics struct {
-	AppID   string
-	Allowed map[string]interface{}
+type metricsServerConfig struct {
+	ServerURL               string        `env:"ABC_UPDATER_METRICS_METADATA_URL, default=https://abc-updater.tycho.joonix.net"`
+	MetadataUpdateFrequency time.Duration `env:"ABC_UPDATER_METRICS_METADATA_UPDATE_FREQUENCY, default=1m"`
+	Port                    string        `env:"ABC_UPDATER_METRICS_SERVER_PORT, default=8080"`
 }
 
-// MetricAllowed is a helper for looking up a particular metric for an app.
-func (m *AppMetrics) MetricAllowed(metric string) bool {
-	if m != nil && m.Allowed != nil {
-		_, ok := m.Allowed[metric]
-		return ok
-	}
-	return false
-}
-
-// GetAllowedMetrics returns a struct containing metrics for a given AppID.
-// An error is returned if that AppID is not defined in the backend for metrics.
-func GetAllowedMetrics(appID string) (*AppMetrics, error) {
-	// TODO: implement me
-	if appID != "implementLater" {
-		return nil, fmt.Errorf("no metric definition found for app %s", appID)
-	}
-	return &AppMetrics{Allowed: map[string]interface{}{"todo-implement": struct{}{}}}, nil
-}
-
-func handleMetric(h *renderer.Renderer) http.Handler {
+func handleMetric(h *renderer.Renderer, db *server.MetricsDB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logger := logging.FromContext(r.Context())
 		metricLogger := logger.WithGroup("metric")
@@ -72,7 +52,7 @@ func handleMetric(h *renderer.Renderer) http.Handler {
 			return
 		}
 
-		allowedMetrics, err := GetAllowedMetrics(metrics.AppID)
+		allowedMetrics, err := db.GetAllowedMetrics(metrics.AppID)
 		if err != nil {
 			h.RenderJSON(w, http.StatusNotFound, err)
 			logger.WarnContext(r.Context(), "received metric request for unknown app")
@@ -116,17 +96,56 @@ func realMain(ctx context.Context) error {
 		return fmt.Errorf("failed to create renderer for main server: %w", err)
 	}
 
+	var c metricsServerConfig
+	if err := envconfig.ProcessWith(ctx, &envconfig.Config{
+		Target:   &c,
+		Lookuper: envconfig.OsLookuper(),
+	}); err != nil {
+		return fmt.Errorf("failed to process envconfig: %w", err)
+	}
+	if c.MetadataUpdateFrequency.Milliseconds() < 100 {
+		return fmt.Errorf("invalid config: METADATA_UPDATE_FREQUENCY must be at least 100ms")
+	}
+
+	dbUpdateParams := &server.MetricsLoadParams{
+		ServerURL: c.ServerURL,
+		Client:    &http.Client{Timeout: 2 * time.Second},
+	}
+
+	db := &server.MetricsDB{}
+	if err := db.Update(ctx, dbUpdateParams); err != nil {
+		return fmt.Errorf("failed to load metrics definitions on startup: %w", err)
+	}
+
+	// Fetch new metadata for DB occasionally.
+	done := make(chan bool)
+	ticker := time.NewTicker(c.MetadataUpdateFrequency)
+	defer ticker.Stop()
+	defer func() { done <- true }()
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				logger.DebugContext(ctx, "Updating metrics definitions.")
+				// Error logged by db.
+				_ = db.Update(ctx, dbUpdateParams)
+			}
+		}
+	}()
+
 	mux := http.NewServeMux()
-	mux.Handle("POST /sendMetrics", handleMetric(h))
+	mux.Handle("POST /sendMetrics", handleMetric(h, db))
 
 	httpServer := &http.Server{
-		Addr:              *port,
+		Addr:              c.Port,
 		Handler:           mux,
 		ReadHeaderTimeout: 2 * time.Second,
 	}
 
-	logger.InfoContext(ctx, "starting server", "port", *port)
-	server, err := serving.New(*port)
+	logger.InfoContext(ctx, "starting server", "port", c.Port)
+	server, err := serving.New(c.Port)
 	if err != nil {
 		return fmt.Errorf("error creating server: %w", err)
 	}
@@ -142,6 +161,7 @@ func main() {
 	// creates a context that exits on interrupt signal.
 	ctx, done := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer done()
+	ctx = logging.WithLogger(ctx, logging.NewFromEnv("ABC_UPDATER_METRICS_"))
 	logger := logging.FromContext(ctx)
 
 	flag.Parse()
