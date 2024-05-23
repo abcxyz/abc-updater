@@ -1,4 +1,4 @@
-// Copyright 2023 The Authors (see AUTHORS file)
+// Copyright 2024 The Authors (see AUTHORS file)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,6 +31,9 @@ const (
 	maxErrorResponseBytes = 2048
 )
 
+// Assert MetricsDB satisfies MetricsLookuper.
+var _ MetricsLookuper = (*MetricsDB)(nil)
+
 // ManifestResponse is the json file served to list all apps which have metrics.
 type ManifestResponse struct {
 	MetricsApps []string `json:"metricsApps"`
@@ -40,6 +43,11 @@ type ManifestResponse struct {
 // which can be recorded.
 type AllowedMetricsResponse struct {
 	Metrics []string `json:"metrics"`
+}
+
+type MetricsLookuper interface {
+	Update(ctx context.Context, params *MetricsLoadParams) error
+	GetAllowedMetrics(appID string) (*AppMetrics, error)
 }
 
 type MetricsDB struct {
@@ -118,11 +126,9 @@ func (db *MetricsDB) GetAllowedMetrics(appID string) (*AppMetrics, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 	if db.apps == nil {
-		// TODO: this should probably log an error and bubble up as a 5xx
 		return nil, fmt.Errorf("no metric definition found for app %s", appID)
 	}
 	v, ok := db.apps[appID]
-	// TODO: this should bubble up as a 404
 	if !ok {
 		return nil, fmt.Errorf("no metric definition found for app %s", appID)
 	}
