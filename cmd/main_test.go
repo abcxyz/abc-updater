@@ -67,7 +67,7 @@ func marshalRequest(tb testing.TB, req *metrics.SendMetricRequest) io.Reader {
 	return bytes.NewReader(b)
 }
 
-func Test_handleMetric(t *testing.T) {
+func TestHandleMetric(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name       string
@@ -80,8 +80,11 @@ func Test_handleMetric(t *testing.T) {
 		{
 			name: "happy_single_metric",
 			db: &testMetricsDB{apps: map[string]*server.AppMetrics{"test": {
-				AppID:   "test",
-				Allowed: map[string]interface{}{"foo": struct{}{}, "bar": struct{}{}},
+				AppID: "test",
+				Allowed: map[string]interface{}{
+					"foo": struct{}{},
+					"bar": struct{}{},
+				},
 			}}},
 			body: marshalRequest(t, &metrics.SendMetricRequest{
 				AppID:      "test",
@@ -133,10 +136,10 @@ func Test_handleMetric(t *testing.T) {
 
 			// Normally we wouldn't test log messages, but as that is the way metrics
 			// are being exported, it seems important to do so here.
-			for k, v := range tc.wantLogs {
+			for k, want := range tc.wantLogs {
 				// TODO: I don't like that this panics if there are no matches, would rather handle error myself
 				// I have https://github.com/thejerf/slogassert/pull/5 to try and fix it.
-				if got, want := logHandler.AssertSomePrecise(*k), v; got != want {
+				if got := logHandler.AssertSomePrecise(*k); got != want {
 					t.Errorf("Unexpected number of logs containing [%v]. Got [%d], want [%d]", k, got, want)
 				}
 			}
