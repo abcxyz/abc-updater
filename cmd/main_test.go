@@ -58,11 +58,11 @@ func (db *testMetricsDB) GetAllowedMetrics(appID string) (*server.AppMetrics, er
 	return v, nil
 }
 
-func marshalRequest(t testing.TB, req *metrics.SendMetricRequest) io.Reader {
-	t.Helper()
+func marshalRequest(tb testing.TB, req *metrics.SendMetricRequest) io.Reader {
+	tb.Helper()
 	b, err := json.Marshal(req)
 	if err != nil {
-		t.Fatalf("could not marshal json: %s", err.Error())
+		tb.Fatalf("could not marshal json: %s", err.Error())
 	}
 	return bytes.NewReader(b)
 }
@@ -106,6 +106,7 @@ func Test_handleMetric(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := context.Background()
 			h, err := renderer.New(ctx, nil,
 				renderer.WithOnError(func(err error) {
