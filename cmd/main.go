@@ -66,10 +66,15 @@ func handleMetric(h *renderer.Renderer, db server.MetricsLookuper) http.Handler 
 		for name, count := range metrics.Metrics {
 			if allowedMetrics.MetricAllowed(name) {
 				// TODO: does this leak sensitive information? Is default logger preferred.
-				metricLogger.InfoContext(r.Context(), "metric received", "appID", metrics.AppID, "appVersion", metrics.AppVersion, "installID", metrics.InstallID, "name", name, "count", count)
+				metricLogger.InfoContext(r.Context(), "metric received",
+					"app_id", metrics.AppID,
+					"app_version", metrics.AppVersion,
+					"install_id", metrics.InstallID,
+					"name", name,
+					"count", count)
 			} else {
 				// TODO: do we want to return a warning to client or fail silently?
-				logger.WarnContext(r.Context(), "received unknown metric for app", "appID", metrics.AppID)
+				logger.WarnContext(r.Context(), "received unknown metric for app", "app_id", metrics.AppID)
 			}
 		}
 
