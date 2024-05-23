@@ -23,14 +23,15 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/thejerf/slogassert"
 
 	"github.com/abcxyz/abc-updater/pkg/metrics"
 	"github.com/abcxyz/abc-updater/pkg/server"
-
 	"github.com/abcxyz/pkg/logging"
 	"github.com/abcxyz/pkg/renderer"
-	"github.com/thejerf/slogassert"
 )
 
 // Assert testMetricsDB satisfies pkg.MetricsLookuper.
@@ -47,11 +48,9 @@ func (db *testMetricsDB) Update(ctx context.Context, params *server.MetricsLoadP
 
 func (db *testMetricsDB) GetAllowedMetrics(appID string) (*server.AppMetrics, error) {
 	if db.apps == nil {
-		// TODO: this should probably log an error and bubble up as a 5xx
 		return nil, fmt.Errorf("no metric definition found for app %s", appID)
 	}
 	v, ok := db.apps[appID]
-	// TODO: this should bubble up as a 404
 	if !ok {
 		return nil, fmt.Errorf("no metric definition found for app %s", appID)
 	}
@@ -67,7 +66,7 @@ func marshalRequest(tb testing.TB, req *metrics.SendMetricRequest) io.Reader {
 	return bytes.NewReader(b)
 }
 
-func Test_handleMetric(t *testing.T) {
+func TestHandleMetric(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name       string
@@ -76,12 +75,14 @@ func Test_handleMetric(t *testing.T) {
 		wantStatus int
 		wantLogs   map[*slogassert.LogMessageMatch]int
 	}{
-		// TODO: more test cases if by some miracle this ugly thing doesn't get ousted in code review
 		{
 			name: "happy_single_metric",
 			db: &testMetricsDB{apps: map[string]*server.AppMetrics{"test": {
-				AppID:   "test",
-				Allowed: map[string]interface{}{"foo": struct{}{}, "bar": struct{}{}},
+				AppID: "test",
+				Allowed: map[string]interface{}{
+					"foo": struct{}{},
+					"bar": struct{}{},
+				},
 			}}},
 			body: marshalRequest(t, &metrics.SendMetricRequest{
 				AppID:      "test",
@@ -102,6 +103,116 @@ func Test_handleMetric(t *testing.T) {
 				},
 				AllAttrsMatch: false,
 			}: 1},
+		},
+		{
+			name: "happy_multi_metric",
+			db: &testMetricsDB{apps: map[string]*server.AppMetrics{"test": {
+				AppID: "test",
+				Allowed: map[string]interface{}{
+					"foo": struct{}{},
+					"bar": struct{}{},
+				},
+			}}},
+			body: marshalRequest(t, &metrics.SendMetricRequest{
+				AppID:      "test",
+				AppVersion: "1.0",
+				Metrics: map[string]int64{
+					"foo": 1,
+					"bar": 2,
+				},
+				InstallID: "asdf",
+			}),
+			wantStatus: 202,
+			wantLogs: map[*slogassert.LogMessageMatch]int{
+				{
+					Message: "metric received",
+					Level:   slog.LevelInfo,
+					Attrs: map[string]any{
+						"metric.app_id":      "test",
+						"metric.app_version": "1.0",
+						"metric.name":        "foo",
+						"metric.count":       1,
+						"metric.install_id":  "asdf",
+					},
+					AllAttrsMatch: false,
+				}: 1,
+				{
+					Message: "metric received",
+					Level:   slog.LevelInfo,
+					Attrs: map[string]any{
+						"metric.app_id":      "test",
+						"metric.app_version": "1.0",
+						"metric.name":        "bar",
+						"metric.count":       2,
+						"metric.install_id":  "asdf",
+					},
+					AllAttrsMatch: false,
+				}: 1,
+			},
+		},
+		{
+			name: "happy_unknown_metric",
+			db: &testMetricsDB{apps: map[string]*server.AppMetrics{"test": {
+				AppID: "test",
+				Allowed: map[string]interface{}{
+					"foo": struct{}{},
+					"bar": struct{}{},
+				},
+			}}},
+			body: marshalRequest(t, &metrics.SendMetricRequest{
+				AppID:      "test",
+				AppVersion: "1.0",
+				Metrics: map[string]int64{
+					"foo":     1,
+					"unknown": 2,
+				},
+				InstallID: "asdf",
+			}),
+			wantStatus: 202,
+			wantLogs: map[*slogassert.LogMessageMatch]int{{
+				Message: "metric received",
+				Level:   slog.LevelInfo,
+				Attrs: map[string]any{
+					"metric.app_id":      "test",
+					"metric.app_version": "1.0",
+					"metric.name":        "foo",
+					"metric.count":       1,
+					"metric.install_id":  "asdf",
+				},
+				AllAttrsMatch: false,
+			}: 1},
+		},
+		{
+			name: "unknown_app_returns_404",
+			db: &testMetricsDB{apps: map[string]*server.AppMetrics{"test": {
+				AppID: "test",
+				Allowed: map[string]interface{}{
+					"foo": struct{}{},
+					"bar": struct{}{},
+				},
+			}}},
+			body: marshalRequest(t, &metrics.SendMetricRequest{
+				AppID:      "unknown",
+				AppVersion: "1.0",
+				Metrics: map[string]int64{
+					"foo":     1,
+					"unknown": 2,
+				},
+				InstallID: "asdf",
+			}),
+			wantStatus: 404,
+		},
+		{
+			name: "malformed_request_returns_400",
+			db: &testMetricsDB{apps: map[string]*server.AppMetrics{"test": {
+				AppID: "test",
+				Allowed: map[string]interface{}{
+					"foo": struct{}{},
+					"bar": struct{}{},
+				},
+			}}},
+			body:       strings.NewReader("40t9u2rgo2gh09joqijgo0194u0{{{{}}}}{+{}{}"),
+			wantStatus: 400,
 		},
 	}
 	for _, tc := range cases {
@@ -133,10 +244,12 @@ func Test_handleMetric(t *testing.T) {
 
 			// Normally we wouldn't test log messages, but as that is the way metrics
 			// are being exported, it seems important to do so here.
-			for k, v := range tc.wantLogs {
-				// TODO: I don't like that this panics if there are no matches, would rather handle error myself
-				// I have https://github.com/thejerf/slogassert/pull/5 to try and fix it.
-				if got, want := logHandler.AssertSomePrecise(*k), v; got != want {
+			for k, want := range tc.wantLogs {
+				// TODO: Switch to logHandler.Assert() if https://github.com/thejerf/slogassert/pull/5 is merged.
+				// This violates https://google.github.io/styleguide/go/decisions#assertion-libraries
+				// in it's current state, if pr is merged I will be able to avoid that
+				// path.
+				if got := logHandler.AssertSomePrecise(*k); got != want {
 					t.Errorf("Unexpected number of logs containing [%v]. Got [%d], want [%d]", k, got, want)
 				}
 			}
