@@ -31,7 +31,7 @@ const (
 	maxErrorResponseBytes = 2048
 )
 
-// Assert MetricsDB satisfies MetricsLookuper
+// Assert MetricsDB satisfies MetricsLookuper.
 var _ MetricsLookuper = (*MetricsDB)(nil)
 
 // ManifestResponse is the json file served to list all apps which have metrics.

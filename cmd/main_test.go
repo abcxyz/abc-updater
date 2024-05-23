@@ -25,15 +25,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/abcxyz/abc-updater/pkg/metrics"
-	"github.com/abcxyz/abc-updater/pkg/server"
 	"github.com/thejerf/slogassert"
 
+	"github.com/abcxyz/abc-updater/pkg/metrics"
+	"github.com/abcxyz/abc-updater/pkg/server"
 	"github.com/abcxyz/pkg/logging"
 	"github.com/abcxyz/pkg/renderer"
 )
 
-// Assert testMetricsDB satisfies pkg.MetricsLookuper
+// Assert testMetricsDB satisfies pkg.MetricsLookuper.
 var _ server.MetricsLookuper = (*testMetricsDB)(nil)
 
 type testMetricsDB struct {
@@ -41,7 +41,7 @@ type testMetricsDB struct {
 }
 
 // Update is a Noop.
-func (d *testMetricsDB) Update(ctx context.Context, params *server.MetricsLoadParams) error {
+func (db *testMetricsDB) Update(ctx context.Context, params *server.MetricsLoadParams) error {
 	return nil
 }
 
@@ -90,7 +90,7 @@ func Test_handleMetric(t *testing.T) {
 				InstallID:  "asdf",
 			}),
 			wantStatus: 202,
-			wantLogs: map[*slogassert.LogMessageMatch]int{&slogassert.LogMessageMatch{
+			wantLogs: map[*slogassert.LogMessageMatch]int{{
 				Message: "metric received",
 				Level:   slog.LevelInfo,
 				Attrs: map[string]any{
@@ -124,6 +124,7 @@ func Test_handleMetric(t *testing.T) {
 			w := httptest.NewRecorder()
 			handleMetric(h, tc.db).ServeHTTP(w, req)
 			response := w.Result()
+			defer response.Body.Close()
 
 			if got, want := response.StatusCode, tc.wantStatus; got != want {
 				t.Errorf("unexpected response code. got %d want %d", got, want)
@@ -138,7 +139,6 @@ func Test_handleMetric(t *testing.T) {
 					t.Errorf("Unexpected number of logs containing [%v]. Got [%d], want [%d]", k, got, want)
 				}
 			}
-
 		})
 	}
 }
