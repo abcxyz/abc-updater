@@ -130,8 +130,9 @@ func realMain(ctx context.Context) error {
 				return
 			case <-ticker.C:
 				logger.DebugContext(ctx, "Updating metrics definitions.")
-				// Error logged by db.
-				_ = db.Update(ctx, dbUpdateParams)
+				if err = db.Update(ctx, dbUpdateParams); err != nil {
+					logger.WarnContext(ctx, "Error updating metrics definitions, will use cached definition if available.", "err", err.Error())
+				}
 			}
 		}
 	}()
