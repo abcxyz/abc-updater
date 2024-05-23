@@ -40,7 +40,7 @@ type testMetricsDB struct {
 }
 
 // Update is a Noop.
-func (db *testMetricsDB) Update(ctx context.Context, params *server.MetricsLoadParams) error {
+func (db *testMetricsDB) Update(ctx context.Context, params *MetricsLoadParams) error {
 	return nil
 }
 
