@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/abcxyz/pkg/renderer"
@@ -25,30 +26,59 @@ import (
 
 const testAppID = "testApp"
 
-func setupTestServer(t testing.TB, allowed map[string]AllowedMetricsResponse) *http.Server {
-	t.Helper()
+func setupTestServer(tb testing.TB, allowed map[string]AllowedMetricsResponse, returnError *int) *httptest.Server {
+	tb.Helper()
+	ren, err := renderer.New(r.Context(), nil, renderer.WithOnError(func(err error) {
+		tb.Fatalf("error rendering json in test server: %s", err.Error())
+	}))
+	if err != nil {
+		tb.Fatalf("error creating renderer for test server: %w", err.Error())
+	}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if returnError != nil {
+			ren.RenderJSON(w, *returnError, fmt.Errorf("something went wrong for testing purposes"))
+			return
+		}
+
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/manifest.json":
 			appList := make([]string, 0, len(allowed))
 			for k, _ := range allowed {
 				appList = append(appList, k)
 			}
-			renderer.New(r.Context())
+			response := ManifestResponse{appList}
+			ren.RenderJSON(w, http.StatusOK, &response)
+			return
+
 		case r.Method == http.MethodGet && r.URL.Path == "/metrics.json":
-			// TODO: metrics response
+			parts := strings.Split(r.URL.Path, "/")
+			if len(parts) >= 2 {
+				if appID := parts[len(parts)-2]; appID != "" {
+					if v, ok := allowed[appID]; ok {
+						ren.RenderJSON(w, http.StatusOK, &v)
+						return
+					}
+				}
+			}
+			// Technically this is xml with current implementation, but we don't care about parsing error bodies.
+			ren.RenderJSON(w, http.StatusNotFound, fmt.Errorf("noSuchKey"))
+			fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
+			return
+
 		default:
-			w.WriteHeader(http.StatusNotFound)
+			// Technically this is xml with current implementation, but we don't care about parsing error bodies.
+			ren.RenderJSON(w, http.StatusNotFound, fmt.Errorf("noSuchKey"))
 			fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
 			return
 		}
-
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "%s\n", string(sampleAppResponse))
 	}))
 
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		ts.Close()
 	})
 	return ts
+}
+
+func TestMetricsDB_Update(t *testing.T) {
+
 }
