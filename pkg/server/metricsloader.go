@@ -1,4 +1,4 @@
-// Copyright 2023 The Authors (see AUTHORS file)
+// Copyright 2024 The Authors (see AUTHORS file)
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,6 +31,9 @@ const (
 	maxErrorResponseBytes = 2048
 )
 
+// Assert MetricsDB satisfies MetricsLookuper
+var _ MetricsLookuper = (*MetricsDB)(nil)
+
 // ManifestResponse is the json file served to list all apps which have metrics.
 type ManifestResponse struct {
 	MetricsApps []string `json:"metricsApps"`
@@ -40,6 +43,11 @@ type ManifestResponse struct {
 // which can be recorded.
 type AllowedMetricsResponse struct {
 	Metrics []string `json:"metrics"`
+}
+
+type MetricsLookuper interface {
+	Update(ctx context.Context, params *MetricsLoadParams) error
+	GetAllowedMetrics(appID string) (*AppMetrics, error)
 }
 
 type MetricsDB struct {
@@ -60,9 +68,7 @@ func (db *MetricsDB) Update(ctx context.Context, params *MetricsLoadParams) erro
 		def, err := GetMetricsDefinition(ctx, app, params)
 		if err != nil {
 			logger := logging.FromContext(ctx)
-			logger.WarnContext(ctx, "Error looking up metrics definitions for application in manifest. Will use cached definition if available.",
-				"app_id", app,
-				"cause", err.Error())
+			logger.WarnContext(ctx, "Error looking up metrics definitions for application in manifest. Will use cached definition if available.", "appID", app, "cause", err.Error())
 			// Technically a race as we could squash changes created by another update
 			// but not a big deal if that happens.
 			metrics, err := db.GetAllowedMetrics(app)
@@ -93,21 +99,21 @@ func (db *MetricsDB) Update(ctx context.Context, params *MetricsLoadParams) erro
 // currently logged. Logging is called in a goroutine to reduce blocking when
 // holding write lock. Must only be called by a function that already
 // holds lock.
-func diffApps(ctx context.Context, oldDefs, newDefs map[string]*AppMetrics) {
+func diffApps(ctx context.Context, oldDefs map[string]*AppMetrics, newDefs map[string]*AppMetrics) {
 	if oldDefs == nil {
 		oldDefs = make(map[string]*AppMetrics)
 	}
 	logger := logging.FromContext(ctx)
-	for k := range newDefs {
+	for k, _ := range newDefs {
 		k := k
 		if _, ok := oldDefs[k]; !ok {
-			go logger.InfoContext(ctx, "Loaded new application for metrics.", "app_id", k)
+			go logger.InfoContext(ctx, "Loaded new application for metrics.", "appID", k)
 		}
 	}
-	for k := range oldDefs {
+	for k, _ := range oldDefs {
 		k := k
 		if _, ok := newDefs[k]; !ok {
-			go logger.InfoContext(ctx, "Removed application for metrics.", "app_id", k)
+			go logger.InfoContext(ctx, "Removed application for metrics.", "appID", k)
 		}
 	}
 }
@@ -130,7 +136,7 @@ func (db *MetricsDB) GetAllowedMetrics(appID string) (*AppMetrics, error) {
 }
 
 // MetricsLoadParams are the parameters for looking up metrics information.
-// TODO: load from config and parse/validate url on startup.
+// TODO: load from config and parse/validate url on startup
 type MetricsLoadParams struct {
 	ServerURL string
 	Client    *http.Client

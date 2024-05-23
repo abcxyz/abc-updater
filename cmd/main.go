@@ -29,6 +29,7 @@ import (
 
 	"github.com/abcxyz/abc-updater/pkg/metrics"
 	"github.com/abcxyz/abc-updater/pkg/server"
+
 	"github.com/abcxyz/pkg/logging"
 	"github.com/abcxyz/pkg/renderer"
 	"github.com/abcxyz/pkg/serving"
@@ -40,7 +41,7 @@ type metricsServerConfig struct {
 	Port                    string        `env:"ABC_UPDATER_METRICS_SERVER_PORT, default=8080"`
 }
 
-func handleMetric(h *renderer.Renderer, db *server.MetricsDB) http.Handler {
+func handleMetric(h *renderer.Renderer, db server.MetricsLookuper) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		logger := logging.FromContext(r.Context())
 		metricLogger := logger.WithGroup("metric")
