@@ -60,7 +60,9 @@ func (db *MetricsDB) Update(ctx context.Context, params *MetricsLoadParams) erro
 		def, err := GetMetricsDefinition(ctx, app, params)
 		if err != nil {
 			logger := logging.FromContext(ctx)
-			logger.WarnContext(ctx, "Error looking up metrics definitions for application in manifest. Will use cached definition if available.", "appID", app, "cause", err.Error())
+			logger.WarnContext(ctx, "Error looking up metrics definitions for application in manifest. Will use cached definition if available.",
+				"app_id", app,
+				"cause", err.Error())
 			// Technically a race as we could squash changes created by another update
 			// but not a big deal if that happens.
 			metrics, err := db.GetAllowedMetrics(app)
@@ -91,21 +93,21 @@ func (db *MetricsDB) Update(ctx context.Context, params *MetricsLoadParams) erro
 // currently logged. Logging is called in a goroutine to reduce blocking when
 // holding write lock. Must only be called by a function that already
 // holds lock.
-func diffApps(ctx context.Context, oldDefs map[string]*AppMetrics, newDefs map[string]*AppMetrics) {
+func diffApps(ctx context.Context, oldDefs, newDefs map[string]*AppMetrics) {
 	if oldDefs == nil {
 		oldDefs = make(map[string]*AppMetrics)
 	}
 	logger := logging.FromContext(ctx)
-	for k, _ := range newDefs {
+	for k := range newDefs {
 		k := k
 		if _, ok := oldDefs[k]; !ok {
-			go logger.InfoContext(ctx, "Loaded new application for metrics.", "appID", k)
+			go logger.InfoContext(ctx, "Loaded new application for metrics.", "app_id", k)
 		}
 	}
-	for k, _ := range oldDefs {
+	for k := range oldDefs {
 		k := k
 		if _, ok := newDefs[k]; !ok {
-			go logger.InfoContext(ctx, "Removed application for metrics.", "appID", k)
+			go logger.InfoContext(ctx, "Removed application for metrics.", "app_id", k)
 		}
 	}
 }
@@ -128,7 +130,7 @@ func (db *MetricsDB) GetAllowedMetrics(appID string) (*AppMetrics, error) {
 }
 
 // MetricsLoadParams are the parameters for looking up metrics information.
-// TODO: load from config and parse/validate url on startup
+// TODO: load from config and parse/validate url on startup.
 type MetricsLoadParams struct {
 	ServerURL string
 	Client    *http.Client
