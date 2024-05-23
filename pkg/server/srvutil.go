@@ -32,7 +32,7 @@ import (
 // no further processing should happen on the request.
 //
 // It automatically closes the request body to prevent leaking.
-// TODO: move this to abcxyz/pkg.
+// TODO: move this to abcxyz/pkg
 func DecodeRequest[T any](ctx context.Context, w http.ResponseWriter, r *http.Request, h *renderer.Renderer) (*T, error) {
 	req := new(T)
 
