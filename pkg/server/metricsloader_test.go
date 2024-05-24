@@ -15,6 +15,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -22,39 +23,41 @@ import (
 	"testing"
 
 	"github.com/abcxyz/pkg/renderer"
+	"github.com/abcxyz/pkg/testutil"
+	"github.com/google/go-cmp/cmp"
 )
 
 const testAppID = "testApp"
 
-func setupTestServer(tb testing.TB, allowed map[string]AllowedMetricsResponse, returnError *int) *httptest.Server {
+func setupTestServer(tb testing.TB, allowed map[string]*AllowedMetricsResponse, returnErrorCode int) *httptest.Server {
 	tb.Helper()
-	ren, err := renderer.New(r.Context(), nil, renderer.WithOnError(func(err error) {
+	ren, err := renderer.New(context.Background(), nil, renderer.WithOnError(func(err error) {
 		tb.Fatalf("error rendering json in test server: %s", err.Error())
 	}))
 	if err != nil {
-		tb.Fatalf("error creating renderer for test server: %w", err.Error())
+		tb.Fatalf("error creating renderer for test server: %s", err.Error())
 	}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if returnError != nil {
-			ren.RenderJSON(w, *returnError, fmt.Errorf("something went wrong for testing purposes"))
+		if returnErrorCode != 0 {
+			ren.RenderJSON(w, returnErrorCode, fmt.Errorf("something went wrong for testing purposes"))
 			return
 		}
 
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/manifest.json":
 			appList := make([]string, 0, len(allowed))
-			for k, _ := range allowed {
+			for k := range allowed {
 				appList = append(appList, k)
 			}
 			response := ManifestResponse{appList}
 			ren.RenderJSON(w, http.StatusOK, &response)
 			return
 
-		case r.Method == http.MethodGet && r.URL.Path == "/metrics.json":
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/metrics.json"):
 			parts := strings.Split(r.URL.Path, "/")
 			if len(parts) >= 2 {
 				if appID := parts[len(parts)-2]; appID != "" {
-					if v, ok := allowed[appID]; ok {
+					if v, ok := allowed[appID]; ok && v != nil {
 						ren.RenderJSON(w, http.StatusOK, &v)
 						return
 					}
@@ -80,5 +83,178 @@ func setupTestServer(tb testing.TB, allowed map[string]AllowedMetricsResponse, r
 }
 
 func TestMetricsDB_Update(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name            string
+		before          map[string]*AppMetrics
+		serverMap       map[string]*AllowedMetricsResponse
+		returnErrorCode int
+		want            map[string]*AppMetrics
+		wantError       string
+	}{
+		{
+			name: "happy_first_update",
+			serverMap: map[string]*AllowedMetricsResponse{
+				"foo": {Metrics: []string{"metric1", "metric2"}},
+				"bar": {Metrics: []string{"metric1"}},
+			},
+			want: map[string]*AppMetrics{
+				"foo": {
+					AppID: "foo",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+						"metric2": struct{}{},
+					},
+				},
+				"bar": {
+					AppID: "bar",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+					},
+				},
+			},
+		},
+		{
+			name: "happy_successive_update",
+			before: map[string]*AppMetrics{
+				"foo": {
+					AppID: "foo",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+						"metric2": struct{}{},
+					},
+				},
+				"bar": {
+					AppID: "bar",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+					},
+				},
+			},
+			serverMap: map[string]*AllowedMetricsResponse{
+				"foo": {Metrics: []string{"metric1", "metric3"}},
+				"baz": {Metrics: []string{"metric1"}},
+			},
+			want: map[string]*AppMetrics{
+				"foo": {
+					AppID: "foo",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+						"metric3": struct{}{},
+					},
+				},
+				"baz": {
+					AppID: "baz",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+					},
+				},
+			},
+		},
+		{
+			name: "unhappy_app_fetch_uses_config_value",
+			before: map[string]*AppMetrics{
+				"foo": {
+					AppID: "foo",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+						"metric2": struct{}{},
+					},
+				},
+				"bar": {
+					AppID: "bar",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+					},
+				},
+			},
+			serverMap: map[string]*AllowedMetricsResponse{
+				"foo": {Metrics: []string{"metric1", "metric3"}},
+				"bar": nil,
+				"baz": {Metrics: []string{"metric1"}},
+			},
+			want: map[string]*AppMetrics{
+				"foo": {
+					AppID: "foo",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+						"metric3": struct{}{},
+					},
+				},
+				"bar": {
+					AppID: "bar",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+					},
+				},
+				"baz": {
+					AppID: "baz",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+					},
+				},
+			},
+		},
+		{
+			name: "unhappy_cannot_load_manifest_noop_returns_error",
+			before: map[string]*AppMetrics{
+				"foo": {
+					AppID: "foo",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+						"metric2": struct{}{},
+					},
+				},
+				"bar": {
+					AppID: "bar",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+					},
+				},
+			},
+			returnErrorCode: http.StatusInternalServerError,
+			wantError:       "could not load manifest",
+			want: map[string]*AppMetrics{
+				"foo": {
+					AppID: "foo",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+						"metric2": struct{}{},
+					},
+				},
+				"bar": {
+					AppID: "bar",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+					},
+				},
+			},
+		},
+	}
 
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+
+			ts := setupTestServer(t, tc.serverMap, tc.returnErrorCode)
+
+			params := MetricsLoadParams{
+				ServerURL: ts.URL,
+				Client:    http.DefaultClient,
+			}
+
+			db := &MetricsDB{
+				apps: tc.before,
+			}
+
+			if diff := testutil.DiffErrString(db.Update(ctx, &params), tc.wantError); diff != "" {
+				t.Error(diff)
+			}
+
+			if diff := cmp.Diff(db.apps, tc.want); diff != "" {
+				t.Errorf("unexpected end state. Diff: (-got +want): %s", diff)
+			}
+		})
+	}
 }

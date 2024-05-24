@@ -56,7 +56,7 @@ type MetricsDB struct {
 }
 
 func (db *MetricsDB) Update(ctx context.Context, params *MetricsLoadParams) error {
-	manifest, err := GetManifest(ctx, params)
+	manifest, err := getManifest(ctx, params)
 	if err != nil {
 		return fmt.Errorf("could not load manifest: %w", err)
 	}
@@ -65,7 +65,7 @@ func (db *MetricsDB) Update(ctx context.Context, params *MetricsLoadParams) erro
 
 	// Could do these in parallel if performance is ever a concern.
 	for _, app := range manifest.MetricsApps {
-		def, err := GetMetricsDefinition(ctx, app, params)
+		def, err := getMetricsDefinition(ctx, app, params)
 		if err != nil {
 			logger := logging.FromContext(ctx)
 			logger.WarnContext(ctx, "Error looking up metrics definitions for application in manifest. Will use cached definition if available.",
@@ -74,7 +74,7 @@ func (db *MetricsDB) Update(ctx context.Context, params *MetricsLoadParams) erro
 			// Technically a race as we could squash changes created by another update
 			// but not a big deal if that happens.
 			metrics, err := db.GetAllowedMetrics(app)
-			if err != nil {
+			if err == nil {
 				newDefs[app] = metrics
 			}
 			continue
@@ -142,8 +142,8 @@ type MetricsLoadParams struct {
 	Client    *http.Client
 }
 
-// GetManifest fetches manifest definition from remote server.
-func GetManifest(ctx context.Context, params *MetricsLoadParams) (*ManifestResponse, error) {
+// getManifest fetches manifest definition from remote server.
+func getManifest(ctx context.Context, params *MetricsLoadParams) (*ManifestResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf(manifestURLFormat, params.ServerURL), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create manifest request: %w", err)
@@ -169,8 +169,8 @@ func GetManifest(ctx context.Context, params *MetricsLoadParams) (*ManifestRespo
 	return &m, nil
 }
 
-// GetMetricsDefinition fetches metrics definitions for a particular app from remote server.
-func GetMetricsDefinition(ctx context.Context, appID string, params *MetricsLoadParams) (*AllowedMetricsResponse, error) {
+// getMetricsDefinition fetches metrics definitions for a particular app from remote server.
+func getMetricsDefinition(ctx context.Context, appID string, params *MetricsLoadParams) (*AllowedMetricsResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf(appMetricsURLFormat, params.ServerURL, appID), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric lookup request: %w", err)
