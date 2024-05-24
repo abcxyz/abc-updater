@@ -82,6 +82,74 @@ func setupTestServer(tb testing.TB, allowed map[string]*AllowedMetricsResponse, 
 	return ts
 }
 
+func TestMetricsDB_GetAllowedMetrics(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name      string
+		state     map[string]*AppMetrics
+		appID     string
+		want      *AppMetrics
+		wantError string
+	}{
+		{
+			name: "happy",
+			state: map[string]*AppMetrics{
+				"foo": {
+					AppID: "foo",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+						"metric2": struct{}{},
+					},
+				},
+			},
+			appID: "foo",
+			want: &AppMetrics{
+				AppID: "foo",
+				Allowed: map[string]interface{}{
+					"metric1": struct{}{},
+					"metric2": struct{}{},
+				},
+			},
+		},
+		{
+			name:      "unhappy_nil_map_returns_error",
+			appID:     "foo",
+			want:      nil,
+			wantError: "no metric definition found for app",
+		},
+		{
+			name: "unhappy_missing_app_returns error",
+			state: map[string]*AppMetrics{
+				"bar": {
+					AppID: "bar",
+					Allowed: map[string]interface{}{
+						"metric1": struct{}{},
+						"metric2": struct{}{},
+					},
+				},
+			},
+			appID:     "foo",
+			want:      nil,
+			wantError: "no metric definition found for app",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db := MetricsDB{apps: tc.state}
+			got, err := db.GetAllowedMetrics(tc.appID)
+			if diff := testutil.DiffErrString(err, tc.wantError); diff != "" {
+				t.Error(diff)
+			}
+
+			if diff := cmp.Diff(got, tc.want); diff != "" {
+				t.Errorf("unexpected output. Diff (-got +want): %s", diff)
+			}
+		})
+	}
+}
+
 func TestMetricsDB_Update(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
