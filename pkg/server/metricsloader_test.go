@@ -28,8 +28,6 @@ import (
 	"github.com/abcxyz/pkg/testutil"
 )
 
-const testAppID = "testApp"
-
 func setupTestServer(tb testing.TB, allowed map[string]*AllowedMetricsResponse, returnErrorCode int) *httptest.Server {
 	tb.Helper()
 	ren, err := renderer.New(context.Background(), nil, renderer.WithOnError(func(err error) {
