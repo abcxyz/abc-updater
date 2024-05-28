@@ -27,7 +27,6 @@ import (
 
 	"github.com/sethvargo/go-envconfig"
 
-	"github.com/abcxyz/abc-updater/pkg/metrics"
 	"github.com/abcxyz/abc-updater/pkg/server"
 
 	"github.com/abcxyz/pkg/logging"
@@ -39,47 +38,6 @@ type metricsServerConfig struct {
 	ServerURL               string        `env:"ABC_UPDATER_METRICS_METADATA_URL, default=https://abc-updater.tycho.joonix.net"`
 	MetadataUpdateFrequency time.Duration `env:"ABC_UPDATER_METRICS_METADATA_UPDATE_FREQUENCY, default=1m"`
 	Port                    string        `env:"ABC_UPDATER_METRICS_SERVER_PORT, default=8080"`
-}
-
-func handleMetric(h *renderer.Renderer, db server.MetricsLookuper) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger := logging.FromContext(r.Context())
-		metricLogger := logger.WithGroup("metric")
-		logger.InfoContext(r.Context(), "handling request")
-
-		metrics, err := server.DecodeRequest[metrics.SendMetricRequest](r.Context(), w, r, h)
-		if err != nil {
-			// Error response already handled by pkg.DecodeRequest.
-			return
-		}
-
-		allowedMetrics, err := db.GetAllowedMetrics(metrics.AppID)
-		if err != nil {
-			h.RenderJSON(w, http.StatusNotFound, err)
-			logger.WarnContext(r.Context(), "received metric request for unknown app")
-			return
-		}
-
-		// Currently we only expose an API for a single metric on the client,
-		// but I suspect multiple metrics will be added later on, and effort is
-		// about the same to support both.
-		for name, count := range metrics.Metrics {
-			if allowedMetrics.MetricAllowed(name) {
-				metricLogger.InfoContext(r.Context(), "metric received",
-					"app_id", metrics.AppID,
-					"app_version", metrics.AppVersion,
-					"install_id", metrics.InstallID,
-					"name", name,
-					"count", count)
-			} else {
-				// TODO: do we want to return a warning to client or fail silently?
-				logger.WarnContext(r.Context(), "received unknown metric for app", "app_id", metrics.AppID)
-			}
-		}
-
-		// Client does not currently read body, future changes are acceptable.
-		h.RenderJSON(w, http.StatusAccepted, map[string]string{"message": "ok"})
-	})
 }
 
 // realMain creates an example backend HTTP server.
