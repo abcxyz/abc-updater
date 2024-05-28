@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package server
 
 import (
 	"bytes"
@@ -29,24 +29,23 @@ import (
 	"github.com/thejerf/slogassert"
 
 	"github.com/abcxyz/abc-updater/pkg/metrics"
-	"github.com/abcxyz/abc-updater/pkg/server"
 	"github.com/abcxyz/pkg/logging"
 	"github.com/abcxyz/pkg/renderer"
 )
 
 // Assert testMetricsDB satisfies pkg.MetricsLookuper.
-var _ server.MetricsLookuper = (*testMetricsDB)(nil)
+var _ MetricsLookuper = (*testMetricsDB)(nil)
 
 type testMetricsDB struct {
-	apps map[string]*server.AppMetrics
+	apps map[string]*AppMetrics
 }
 
 // Update is a Noop.
-func (db *testMetricsDB) Update(ctx context.Context, params *server.MetricsLoadParams) error {
+func (db *testMetricsDB) Update(ctx context.Context, params *MetricsLoadParams) error {
 	return nil
 }
 
-func (db *testMetricsDB) GetAllowedMetrics(appID string) (*server.AppMetrics, error) {
+func (db *testMetricsDB) GetAllowedMetrics(appID string) (*AppMetrics, error) {
 	if db.apps == nil {
 		return nil, fmt.Errorf("no metric definition found for app %s", appID)
 	}
@@ -70,14 +69,14 @@ func TestHandleMetric(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name       string
-		db         server.MetricsLookuper
+		db         MetricsLookuper
 		body       io.Reader
 		wantStatus int
 		wantLogs   map[*slogassert.LogMessageMatch]int
 	}{
 		{
 			name: "happy_single_metric",
-			db: &testMetricsDB{apps: map[string]*server.AppMetrics{"test": {
+			db: &testMetricsDB{apps: map[string]*AppMetrics{"test": {
 				AppID: "test",
 				Allowed: map[string]interface{}{
 					"foo": struct{}{},
@@ -106,7 +105,7 @@ func TestHandleMetric(t *testing.T) {
 		},
 		{
 			name: "happy_multi_metric",
-			db: &testMetricsDB{apps: map[string]*server.AppMetrics{"test": {
+			db: &testMetricsDB{apps: map[string]*AppMetrics{"test": {
 				AppID: "test",
 				Allowed: map[string]interface{}{
 					"foo": struct{}{},
@@ -152,7 +151,7 @@ func TestHandleMetric(t *testing.T) {
 		},
 		{
 			name: "happy_unknown_metric",
-			db: &testMetricsDB{apps: map[string]*server.AppMetrics{"test": {
+			db: &testMetricsDB{apps: map[string]*AppMetrics{"test": {
 				AppID: "test",
 				Allowed: map[string]interface{}{
 					"foo": struct{}{},
@@ -184,7 +183,7 @@ func TestHandleMetric(t *testing.T) {
 		},
 		{
 			name: "unknown_app_returns_404",
-			db: &testMetricsDB{apps: map[string]*server.AppMetrics{"test": {
+			db: &testMetricsDB{apps: map[string]*AppMetrics{"test": {
 				AppID: "test",
 				Allowed: map[string]interface{}{
 					"foo": struct{}{},
@@ -204,7 +203,7 @@ func TestHandleMetric(t *testing.T) {
 		},
 		{
 			name: "malformed_request_returns_400",
-			db: &testMetricsDB{apps: map[string]*server.AppMetrics{"test": {
+			db: &testMetricsDB{apps: map[string]*AppMetrics{"test": {
 				AppID: "test",
 				Allowed: map[string]interface{}{
 					"foo": struct{}{},
@@ -234,7 +233,7 @@ func TestHandleMetric(t *testing.T) {
 			req = req.WithContext(logging.WithLogger(req.Context(), slog.New(logHandler)))
 
 			w := httptest.NewRecorder()
-			handleMetric(h, tc.db).ServeHTTP(w, req)
+			HandleMetric(h, tc.db).ServeHTTP(w, req)
 			response := w.Result()
 			defer response.Body.Close()
 
