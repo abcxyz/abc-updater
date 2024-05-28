@@ -65,7 +65,6 @@ func handleMetric(h *renderer.Renderer, db server.MetricsLookuper) http.Handler 
 		// about the same to support both.
 		for name, count := range metrics.Metrics {
 			if allowedMetrics.MetricAllowed(name) {
-				// TODO: does this leak sensitive information? Is default logger preferred.
 				metricLogger.InfoContext(r.Context(), "metric received",
 					"app_id", metrics.AppID,
 					"app_version", metrics.AppVersion,
