@@ -17,25 +17,10 @@ package server
 import (
 	"net/http"
 
+	"github.com/abcxyz/abc-updater/pkg/metrics"
 	"github.com/abcxyz/pkg/logging"
 	"github.com/abcxyz/pkg/renderer"
 )
-
-// TODO: figure out how to make modules so this doesn't get re-defined multiple places
-type SendMetricRequest struct {
-	// The ID of the application to check.
-	AppID string `json:"appId"`
-
-	// The version of the app to check for updates.
-	// Should be of form vMAJOR[.MINOR[.PATCH[-PRERELEASE][+BUILD]]] (e.g., v1.0.1)
-	AppVersion string `json:"appVersion"`
-
-	// TODO: this is a bit different from design doc, is it ok?
-	Metrics map[string]int64 `json:"metrics"`
-
-	// InstallID. Expected to be a hex 8-4-4-4-12 formatted v4 UUID.
-	InstallID string `json:"installId"`
-}
 
 // HandleMetric returns a http.Handler for processing POST requests for sending
 // metrics.
@@ -45,7 +30,7 @@ func HandleMetric(h *renderer.Renderer, db MetricsLookuper) http.Handler {
 		metricLogger := logger.WithGroup("metric")
 		logger.InfoContext(r.Context(), "handling request")
 
-		metrics, err := DecodeRequest[SendMetricRequest](r.Context(), w, r, h)
+		metrics, err := DecodeRequest[metrics.SendMetricRequest](r.Context(), w, r, h)
 		if err != nil {
 			// Error response already handled by pkg.DecodeRequest.
 			return
