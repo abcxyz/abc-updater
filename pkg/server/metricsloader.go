@@ -73,8 +73,11 @@ func (db *MetricsDB) Update(ctx context.Context, params *MetricsLoadParams) erro
 				"cause", err.Error())
 			// Technically a race as we could squash changes created by another update
 			// but not a big deal if that happens.
-			metrics, err := db.GetAllowedMetrics(app)
-			if err == nil {
+			if metrics, err := db.GetAllowedMetrics(app); err != nil {
+				logger.WarnContext(ctx, "No cached definition available for application metrics definition.",
+					"app_id", app,
+					"cause", err.Error())
+			} else {
 				newDefs[app] = metrics
 			}
 			continue
