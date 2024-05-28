@@ -26,11 +26,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/abcxyz/abc-updater/pkg/metrics"
+	"github.com/thejerf/slogassert"
 
+	"github.com/abcxyz/abc-updater/pkg/metrics"
 	"github.com/abcxyz/pkg/logging"
 	"github.com/abcxyz/pkg/renderer"
-	"github.com/thejerf/slogassert"
 )
 
 // Assert testMetricsDB satisfies pkg.MetricsLookuper.

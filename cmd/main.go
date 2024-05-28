@@ -28,7 +28,6 @@ import (
 	"github.com/sethvargo/go-envconfig"
 
 	"github.com/abcxyz/abc-updater/pkg/server"
-
 	"github.com/abcxyz/pkg/logging"
 	"github.com/abcxyz/pkg/renderer"
 	"github.com/abcxyz/pkg/serving"
