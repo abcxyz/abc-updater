@@ -27,6 +27,16 @@ variable "bucket_object_admins" {
   type        = list(string)
 }
 
+variable "metrics_service_name" {
+  description = "Name for Cloud Run service for metrics server."
+  type        = string
+}
+
+variable "metrics_service_location" {
+  description = "GCP Location to run Cloud Run service for metrics server."
+  type        = string
+}
+
 variable "name" {
   type        = string
   description = "The name of this project."
