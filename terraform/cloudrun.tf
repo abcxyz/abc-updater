@@ -21,8 +21,8 @@ resource "google_cloud_run_v2_service" "metrics" {
   project = var.project_id
 
   name         = var.metrics_service_name
-  location     = var.metrics_service_location
-  ingress      = "INGRESS_TRAFFIC_ALL"
+  location     = var.compute_region
+  ingress      = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
   template {
     containers {
       image = "gcr.io/cloudrun/placeholder"

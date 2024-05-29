@@ -32,7 +32,7 @@ variable "metrics_service_name" {
   type        = string
 }
 
-variable "metrics_service_location" {
+variable "compute_region" {
   description = "GCP Location to run Cloud Run service for metrics server."
   type        = string
 }
@@ -60,4 +60,9 @@ variable "metrics_envvars" {
 variable "ci_service_account_email" {
   type        = string
   description = "The service account email for deploying revisions to Cloud Run metrics server."
+}
+
+variable "metrics_service_host" {
+  type = string
+  description = "The host (foo.bar.com) domain traffice for metrics server will come on."
 }
