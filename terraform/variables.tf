@@ -50,3 +50,9 @@ variable "domains" {
   type        = list(string)
   description = "Domain names to use for the HTTPS Global Load Balancer (e.g. [\"my-project.e2e.tycho.joonix.net\"])."
 }
+
+variable "metrics_envvars" {
+  type        = map(string)
+  default     = {}
+  description = "Environment variables for the Metrics Cloud Run service (plain text)."
+}

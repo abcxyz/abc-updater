@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+locals {
+  default_run_envvars = {}
+}
+
 resource "google_cloud_run_v2_service" "metrics" {
   project = var.project_id
 
@@ -28,7 +33,7 @@ resource "google_cloud_run_v2_service" "metrics" {
         }
       }
       dynamic "env" {
-        for_each = merge(local.default_run_envvars, var.envvars)
+        for_each = merge(local.default_run_envvars, var.metrics_envvars)
 
         content {
           name  = env.key
