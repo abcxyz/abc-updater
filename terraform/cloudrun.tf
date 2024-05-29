@@ -41,7 +41,7 @@ resource "google_cloud_run_v2_service" "metrics" {
         }
       }
     }
-    # TODO: Do I need to explicitly specify service_account or is default behavior acceptable?
+    service_account = cloud_run_service_account
   }
 
   depends_on = [
@@ -53,4 +53,17 @@ resource "google_cloud_run_v2_service" "metrics" {
       template[0].containers[0].image,
     ]
   }
+}
+
+resource "google_service_account" "cloud_run_service_account" {
+  project = var.project_id
+
+  account_id   = "abc-m-sa"
+  display_name = "ABC Metrics Server Cloud Run Service service account"
+}
+
+resource "google_service_account_iam_member" "cloud_run_sa_user" {
+  service_account_id = google_service_account.cloud_run_service_account.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.ci_service_account_email}"
 }

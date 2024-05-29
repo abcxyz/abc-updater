@@ -56,3 +56,8 @@ variable "metrics_envvars" {
   default     = {}
   description = "Environment variables for the Metrics Cloud Run service (plain text)."
 }
+
+variable "ci_service_account_email" {
+  type        = string
+  description = "The service account email for deploying revisions to Cloud Run metrics server."
+}
