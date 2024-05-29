@@ -95,6 +95,12 @@ func realMain(ctx context.Context) error {
 
 	mux := http.NewServeMux()
 	mux.Handle("POST /sendMetrics", server.HandleMetric(h, db))
+	staticServer := http.FileServer(http.Dir("./static"))
+	// Static homepage. Don't handle /* as we want 405 rather than 404 on POST
+	// /sendMetrics and would rather not implement ourselves.
+	mux.Handle("/{$}", staticServer)
+	mux.Handle("/index.html", staticServer)
+	mux.Handle("/assets/", staticServer)
 
 	httpServer := &http.Server{
 		Addr:              c.Port,
