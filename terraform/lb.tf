@@ -99,7 +99,7 @@ resource "google_compute_url_map" "default" {
 
   path_matcher {
     name = "metrics"
-    default_service = google_compute
+    default_service = google_compute_backend_service.metrics_backend.id
   }
 }
 
@@ -133,10 +133,6 @@ resource "google_compute_target_https_proxy" "default" {
   url_map = google_compute_url_map.default.self_link
 
   ssl_certificates = [google_compute_managed_ssl_certificate.default.self_link]
-}
-
-resource "google_compute_backend_service" "metrics" {
-  name = ""
 }
 
 resource "google_compute_backend_bucket" "default" {
