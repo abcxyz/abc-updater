@@ -41,7 +41,7 @@ resource "google_cloud_run_v2_service" "metrics" {
         }
       }
     }
-    service_account = cloud_run_service_account
+    service_account = google_service_account.cloud_run_service_account.email
   }
 
   depends_on = [
