@@ -67,3 +67,14 @@ resource "google_service_account_iam_member" "cloud_run_sa_user" {
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${var.ci_service_account_email}"
 }
+
+resource "google_project_service_identity" "run_agent" {
+  provider = google-beta
+  project = var.project_id
+
+  service = "run.googleapis.com"
+
+  depends_on = [
+    google_project_service.services["run.googleapis.com"],
+  ]
+}

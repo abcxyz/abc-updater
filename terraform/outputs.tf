@@ -26,3 +26,8 @@ output "cloud_run_address" {
   description = "The uri assigned to the cloud run service. For testing before lb is set up."
   value = google_cloud_run_v2_service.metrics.uri
 }
+
+output "cloud_run_agent" {
+  description = "Cloud run service agent email for CI/CD."
+  value = google_project_service_identity.run_agent.email
+}
