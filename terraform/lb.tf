@@ -152,7 +152,7 @@ resource "google_compute_region_network_endpoint_group" "metrics_neg" {
   project = var.project_id
 
   region                = var.compute_region
-  name                  = "grc-neg"
+  name                  = "metrics-neg"
   network_endpoint_type = "SERVERLESS"
 
   cloud_run {
@@ -176,7 +176,7 @@ resource "google_compute_backend_service" "metrics_backend" {
   description           = "ABC Metrics backend"
 
   backend {
-    description = "GRC serverless backend group"
+    description = "ABC updater metrics serverless backend group"
     group       = google_compute_region_network_endpoint_group.metrics_neg.id
   }
 
