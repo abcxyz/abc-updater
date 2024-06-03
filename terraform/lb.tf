@@ -28,6 +28,7 @@ resource "google_project_service" "services" {
   for_each = toset([
     "cloudresourcemanager.googleapis.com",
     "compute.googleapis.com",
+    "run.googleapis.com",
     "serviceusage.googleapis.com",
   ])
 
@@ -90,6 +91,16 @@ resource "google_compute_url_map" "default" {
 
   name            = "${substr(var.name, 0, 50)}-${random_id.default.hex}-url-map" # 63 character limit
   default_service = google_compute_backend_bucket.default.self_link
+
+  host_rule {
+    hosts        = [var.metrics_service_host]
+    path_matcher = "metrics"
+  }
+
+  path_matcher {
+    name = "metrics"
+    default_service = google_compute_backend_service.metrics_backend.id
+  }
 }
 
 resource "google_compute_url_map" "https_redirect" {
@@ -135,4 +146,41 @@ resource "google_compute_backend_bucket" "default" {
   depends_on = [
     google_project_service.services["compute.googleapis.com"],
   ]
+}
+
+resource "google_compute_region_network_endpoint_group" "metrics_neg" {
+  project = var.project_id
+
+  region                = var.compute_region
+  name                  = "grc-neg"
+  network_endpoint_type = "SERVERLESS"
+
+  cloud_run {
+    service = google_cloud_run_v2_service.metrics.name
+  }
+
+  depends_on = [
+    google_project_service.services["compute.googleapis.com"],
+  ]
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "google_compute_backend_service" "metrics_backend" {
+  project = var.project_id
+
+  name                  = "metrics-backend"
+  load_balancing_scheme = "EXTERNAL"
+  description           = "ABC Metrics backend"
+
+  backend {
+    description = "GRC serverless backend group"
+    group       = google_compute_region_network_endpoint_group.metrics_neg.id
+  }
+
+  log_config {
+    enable      = false
+  }
 }

@@ -27,6 +27,16 @@ variable "bucket_object_admins" {
   type        = list(string)
 }
 
+variable "metrics_service_name" {
+  description = "Name for Cloud Run service for metrics server."
+  type        = string
+}
+
+variable "compute_region" {
+  description = "GCP Location to run Cloud Run service for metrics server."
+  type        = string
+}
+
 variable "name" {
   type        = string
   description = "The name of this project."
@@ -39,4 +49,20 @@ variable "name" {
 variable "domains" {
   type        = list(string)
   description = "Domain names to use for the HTTPS Global Load Balancer (e.g. [\"my-project.e2e.tycho.joonix.net\"])."
+}
+
+variable "metrics_envvars" {
+  type        = map(string)
+  default     = {}
+  description = "Environment variables for the Metrics Cloud Run service (plain text)."
+}
+
+variable "ci_service_account_email" {
+  type        = string
+  description = "The service account email for deploying revisions to Cloud Run metrics server."
+}
+
+variable "metrics_service_host" {
+  type = string
+  description = "The host (foo.bar.com) domain traffice for metrics server will come on."
 }
