@@ -20,11 +20,18 @@ on:
     - 'main'
     - 'release/**/*'
 
+env:
+  DOCKER_REGISTRY: 'us-docker.pkg.dev'
+  DOCKER_REPO: 'us-docker.pkg.dev/abc-updater-p-95/abc-updater-images'
+  IMAGE_NAME: 'abc-updater-metrics-server'
+  CLOUD_RUN_SERVICE_REGION: 'us-central1'
+
 concurrency:
   group: '${{ github.workflow }}-${{ github.event_name}}-${{ github.head_ref || github.ref }}'
   cancel-in-progress: false
 
 jobs:
+
   create-release:
     if: |-
       ${{ startsWith(github.event.head_commit.message, 'Release: v') }}
@@ -124,6 +131,7 @@ jobs:
 
   publish-release:
     runs-on: 'ubuntu-latest'
+    environment: 'release'
     permissions:
       contents: 'read'
       id-token: 'write'
@@ -145,7 +153,6 @@ jobs:
               "contents": "write"
             }
           }
-
     - name: 'Publish release'
       env:
         GH_TOKEN: '${{ steps.mint-token.outputs.token }}'
@@ -155,6 +162,40 @@ jobs:
         gh release edit "${RELEASE_VERSION}" \
           --repo "${REPO}" \
           --draft=false
+    - id: 'gcp-auth'
+      name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@55bd3a7c6e2ae7cf1877fd1ccb9d54c0503c457c' # ratchet:google-github-actions/auth@v2
+      with:
+        workload_identity_provider: '${{ secrets.wif_provider }}'
+        service_account: '${{ secrets.wif_service_account_email }}'
+        token_format: 'access_token'
+    - name: 'Authenticate to Artifact Registry'
+      uses: 'docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d' # ratchet:docker/login-action@v3
+      with:
+        username: 'oauth2accesstoken'
+        password: '${{ steps.auth.outputs.access_token }}'
+        registry: '${{ env.DOCKER_REGISTRY }}'
+    - name: 'Verify Image Exists'
+      run: |-
+        if gcloud container images describe ${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ; then
+          echo "Image validated as Release Candidate."
+        else
+          echo "Failed to get image. Check to see if Autopush job failed."
+          exit 1
+        fi
+    - name: 'Pull image via GitHub SHA'
+      run: |-
+        docker pull ${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+    - name: 'Tag Image With Release'
+      env:
+        RELEASE_VERSION: 'v${{ needs.create-release.outputs.version }}'
+      run: |-
+        docker image tag ${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          ${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}:${{ env.RELEASE_VERSION }}
+    # It is complicated to undo a pushed tag, so this is the last step.
+    - name: 'Push Tag to Artifact Registry'
+      run: |-
+        docker push --all-tags ${{ env.DOCKER_REPO }}/${{ env.IMAGE_NAME }}
 
   cleanup-failed-release:
     if: |-
