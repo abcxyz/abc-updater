@@ -22,7 +22,7 @@ on:
 
 env:
   DOCKER_REGISTRY: 'us-docker.pkg.dev'
-  DOCKER_REPO: 'us-docker.pkg.dev/abc-updater-p-95/abc-updater-images'
+  DOCKER_REPO: 'us-docker.pkg.dev/abcxyz-artifacts/docker-images'
   IMAGE_NAME: 'abc-updater-metrics-server'
   CLOUD_RUN_SERVICE_REGION: 'us-central1'
 
