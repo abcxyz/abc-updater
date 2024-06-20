@@ -68,11 +68,6 @@ Example:
 }
 ```
 
-Server will look up the relevant `metrics.json` file when fielding a request.
-The results of this lookup will be cached (including 404).
-
-TBD: How to avoid DOS from lookups of arbitrary application names. This could
-cause expensive lookups, as well as overfill the cache.
-
-TBD: Is there an easy way to get a mainifest of all apps from the update server?
+Server will look up all `metrics.json` files periodically. A `manifest.json`
+file tells the server the list of apps to look up.
 
