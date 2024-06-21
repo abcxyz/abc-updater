@@ -55,6 +55,7 @@ resource "google_cloud_run_v2_service" "metrics" {
   }
 }
 
+// We want more narrow permissions than the default cloud run service account.
 resource "google_service_account" "cloud_run_service_account" {
   project = var.project_id
 
@@ -62,6 +63,8 @@ resource "google_service_account" "cloud_run_service_account" {
   display_name = "ABC Metrics Server Cloud Run Service service account"
 }
 
+// External SA needs both run_as for the cloud run service account, as well as
+// roles/run.developer.
 resource "google_service_account_iam_member" "cloud_run_sa_user" {
   service_account_id = google_service_account.cloud_run_service_account.name
   role               = "roles/iam.serviceAccountUser"
@@ -78,3 +81,19 @@ resource "google_project_service_identity" "run_agent" {
     google_project_service.services["run.googleapis.com"],
   ]
 }
+
+// External SA needs both run_as for the cloud run service account, as well as
+// roles/run.developer.
+resource "google_cloud_run_v2_service_iam_member" "developers" {
+  for_each = toset([
+    "serviceAccount:${var.ci_service_account_email}",
+  ])
+
+  project = var.project_id
+
+  location = google_cloud_run_v2_service.metrics.location
+  name     = google_cloud_run_v2_service.metrics.name
+  role     = "roles/run.developer"
+  member   = each.value
+}
+
