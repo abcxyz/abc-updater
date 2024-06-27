@@ -63,9 +63,7 @@ resource "google_cloud_run_v2_service_iam_member" "public_metrics_access" {
   location = google_cloud_run_v2_service.metrics.location
   name     = google_cloud_run_v2_service.metrics.name
   role     = "roles/run.invoker"
-  members = [
-    "allUsers"
-  ]
+  member   = "allUsers"
 }
 
 // We want more narrow permissions than the default cloud run service account.
