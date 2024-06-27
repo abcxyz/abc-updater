@@ -18,7 +18,7 @@ variable "project_id" {
 }
 
 variable "bucket_name" {
-  description = "The name of the GCS bucket."
+  description = "The name of the GCS bucket holding update and metrics definitions."
   type        = string
 }
 
@@ -30,6 +30,17 @@ variable "bucket_object_admins" {
 variable "metrics_service_name" {
   description = "Name for Cloud Run service for metrics server."
   type        = string
+}
+
+variable "metrics_log_bucket_name" {
+  description = "Name for Log Bucket metrics server logs are sent to. Must be unique."
+  type        = string
+}
+
+variable "metrics_log_bucket_retention_days" {
+  description = "Number of days to keep metrics logs."
+  type        = number
+  default     = 30
 }
 
 variable "compute_region" {
