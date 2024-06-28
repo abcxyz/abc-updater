@@ -44,7 +44,7 @@ variable "metrics_log_bucket_retention_days" {
 }
 
 variable "metrics_log_bucket_viewers" {
-  description = "IAM principals allowed to view metrics logs."
+  description = "IAM principals allowed to view metrics logs. Gives roles/logging.viewAccessor at project level."
   type        = list(string)
 }
 
