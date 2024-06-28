@@ -43,6 +43,11 @@ variable "metrics_log_bucket_retention_days" {
   default     = 30
 }
 
+variable "metrics_log_bucket_viewers" {
+  description = "IAM principals allowed to view metrics logs. Gives roles/logging.viewAccessor at project level."
+  type        = list(string)
+}
+
 variable "compute_region" {
   description = "GCP Location to run Cloud Run service for metrics server."
   type        = string
