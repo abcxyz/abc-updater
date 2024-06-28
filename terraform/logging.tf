@@ -34,3 +34,9 @@ resource "google_logging_project_sink" "metrics" {
   EOF
 
 }
+
+resource "google_project_iam_member" "metric_viewers" {
+  for_each = toset(var.metrics_log_bucket_viewers)
+  role     = "roles/logging.viewAccessor"
+  member   = each.key
+}
