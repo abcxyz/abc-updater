@@ -50,7 +50,7 @@ resource "google_project_iam_member" "metric_viewers" {
   }
 }
 
-resource "google_project_iam_member" "metric_viewers" {
+resource "google_project_iam_member" "metric_viewers_accessor" {
   for_each = toset(var.metrics_log_bucket_viewers)
 
   project = var.project_id
