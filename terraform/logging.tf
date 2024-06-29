@@ -36,15 +36,13 @@ resource "google_logging_project_sink" "metrics" {
 }
 
 
-resource "google_logging_log_view_iam_member" "metric-log" {
+resource "google_project_iam_member" "metric_viewers" {
   for_each = toset(var.metrics_log_bucket_viewers)
 
-  parent   = var.project_id
-  location = var.compute_region
-  bucket   = var.metrics_log_bucket_name
-  name     = "_AllLogs"
-  role     = "roles/logging.viewer"
-  member   = each.key
+  project = var.project_id
+
+  role   = "roles/logging.viewer"
+  member = each.key
 
   condition {
     expression = "resource.name == \"projects/${var.project_id}/locations/${var.compute_region}/buckets/${var.metrics_log_bucket_name}/views/_allLogs\""
