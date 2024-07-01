@@ -36,52 +36,57 @@ resource "google_logging_project_sink" "metrics" {
 }
 
 
-resource "google_project_iam_member" "metric_viewers" {
-  for_each = toset(var.metrics_log_bucket_viewers)
-
-  project = var.project_id
-
-  role   = "roles/logging.viewer"
-  member = each.key
-
-  condition {
-    expression = "resource.name == \"projects/${var.project_id}/locations/${var.compute_region}/buckets/${var.metrics_log_bucket_name}/views/_allLogs\""
-    title      = "Only Metrics Bucket View"
-  }
-}
-
-resource "google_project_iam_member" "metric_viewers_accessor" {
-  for_each = toset(var.metrics_log_bucket_viewers)
-
-  project = var.project_id
-
-  role   = "roles/logging.viewAccessor"
-  member = each.key
-
-  condition {
-    expression = "resource.name == \"projects/${var.project_id}/locations/${var.compute_region}/buckets/${var.metrics_log_bucket_name}/views/_allLogs\""
-    title      = "Only Metrics Bucket View"
-  }
-}
-
-## WIP: rapid prototyping. Will go inside of module.
 #resource "google_project_iam_member" "metric_viewers" {
 #  for_each = toset(var.metrics_log_bucket_viewers)
 #
 #  project = var.project_id
 #
-#  role   = google_project_iam_custom_role.metric_viewers.id
-#  member = "group:chp-bets-platform-dev@twosync.google.com"
+#  role   = "roles/logging.viewer"
+#  member = each.key
+#
+#  condition {
+#    expression = "resource.name == \"projects/${var.project_id}/locations/${var.compute_region}/buckets/${var.metrics_log_bucket_name}/views/_allLogs\""
+#    title      = "Only Metrics Bucket View"
+#  }
 #}
 #
-#resource "google_project_iam_custom_role" "metric_viewers" {
+#resource "google_project_iam_member" "metric_viewers_accessor" {
+#  for_each = toset(var.metrics_log_bucket_viewers)
+#
 #  project = var.project_id
 #
-#  role_id     = "metricViewers"
-#  title       = "Metric Views"
-#  description = "Minimal permissions to view metrics logs."
-#  permissions = [
-#    "logging.buckets.list",
-#    "logging.buckets.get",
-#  ]
+#  role   = "roles/logging.viewAccessor"
+#  member = each.key
+#
+#  condition {
+#    expression = "resource.name == \"projects/${var.project_id}/locations/${var.compute_region}/buckets/${var.metrics_log_bucket_name}/views/_allLogs\""
+#    title      = "Only Metrics Bucket View"
+#  }
 #}
+
+
+resource "google_project_iam_member" "metric_viewers" {
+  for_each = toset(var.metrics_log_bucket_viewers)
+
+  project = var.project_id
+
+  role   = google_project_iam_custom_role.metric_viewers.id
+  member = "group:chp-bets-platform-dev@twosync.google.com"
+
+  condition {
+    expression = "!resource.name.startsWith(\"projects/${var.project_id}/locations/${var.compute_region}/buckets/_default*\")"
+    title      = "No Access to Default Logs"
+  }
+}
+
+resource "google_project_iam_custom_role" "metric_viewers" {
+  project = var.project_id
+
+  role_id     = "metricViewers"
+  title       = "Metric Views"
+  description = "Minimal permissions to view metrics logs."
+  permissions = [
+    "logging.buckets.list",
+    "logging.buckets.get",
+  ]
+}
