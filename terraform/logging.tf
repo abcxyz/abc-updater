@@ -32,8 +32,8 @@ resource "google_logging_project_sink" "metrics" {
   resource.labels.service_name="${var.metrics_service_name}" AND
   jsonPayload.message="metric received"
   EOF
-
 }
+
 
 resource "google_project_iam_member" "metric_viewers" {
   for_each = toset(var.metrics_log_bucket_viewers)
@@ -42,4 +42,9 @@ resource "google_project_iam_member" "metric_viewers" {
 
   role   = "roles/logging.viewAccessor"
   member = each.key
+
+  condition {
+    expression = "resource.name == \"projects/${var.project_id}/locations/${var.compute_region}/buckets/${var.metrics_log_bucket_name}/views/_AllLogs\""
+    title      = "Only Metrics Bucket View"
+  }
 }
