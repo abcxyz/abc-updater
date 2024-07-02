@@ -44,7 +44,7 @@ resource "google_project_iam_member" "metric_viewers" {
   member = each.key
 
   condition {
-    expression = "resource.name == \"projects/${var.project_id}/locations/${var.compute_region}/buckets/${var.metrics_log_bucket_name}/views/_allLogs\""
+    expression = "resource.name == \"projects/${var.project_id}/locations/${var.compute_region}/buckets/${var.metrics_log_bucket_name}/views/_AllLogs\""
     title      = "Only Metrics Bucket View"
   }
 }
