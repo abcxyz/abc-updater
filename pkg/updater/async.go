@@ -16,6 +16,7 @@ package updater
 
 import (
 	"context"
+
 	"github.com/abcxyz/pkg/logging"
 )
 

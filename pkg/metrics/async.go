@@ -16,6 +16,7 @@ package metrics
 
 import (
 	"context"
+
 	"github.com/abcxyz/pkg/logging"
 )
 
@@ -38,7 +39,7 @@ func asyncFunctionCall(ctx context.Context, funcToCall func() error) func() {
 		select {
 		case <-ctx.Done():
 			// Context was cancelled
-		case _, _ = <-doneCh:
+		case <-doneCh:
 			// Program returned
 		}
 	}
