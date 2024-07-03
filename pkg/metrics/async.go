@@ -28,8 +28,7 @@ func asyncFunctionCall(ctx context.Context, funcToCall func() error) func() {
 		defer close(doneCh)
 		err := funcToCall()
 		if err != nil {
-			// TODO: should this be debug instead?
-			logging.FromContext(ctx).WarnContext(ctx, "failed to log metrics",
+			logging.FromContext(ctx).DebugContext(ctx, "failed to log metrics",
 				"error", err)
 			return
 		}
