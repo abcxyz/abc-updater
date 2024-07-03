@@ -203,7 +203,7 @@ func TestNew(t *testing.T) {
 	})
 }
 
-func TestWriteMetric(t *testing.T) {
+func TestWriteMetricSync(t *testing.T) {
 	t.Parallel()
 
 	// Record calls made to test server. Separate per test using a per-test
@@ -322,7 +322,7 @@ func TestWriteMetric(t *testing.T) {
 			}
 			tc.client.Config.ServerURL = fmt.Sprintf("%s%s", ts.URL, relativePath)
 
-			err := tc.client.WriteMetric(ctx, tc.metric, tc.count)
+			err := tc.client.WriteMetricSync(ctx, tc.metric, tc.count)
 
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)

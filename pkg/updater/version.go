@@ -32,7 +32,6 @@ import (
 	"github.com/sethvargo/go-envconfig"
 
 	"github.com/abcxyz/abc-updater/pkg/localstore"
-	"github.com/abcxyz/pkg/logging"
 )
 
 // CheckVersionParams are the parameters for checking for application updates.
@@ -256,34 +255,6 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 	}
 
 	return "", nil
-}
-
-// asyncFunctionCall handles the async part of CheckAppVersion, but accepts
-// a function other than CheckAppVersionSync for testing.
-func asyncFunctionCall(ctx context.Context, funcToCall func() (string, error), outFunc func(string)) func() {
-	updatesCh := make(chan string, 1)
-
-	go func() {
-		defer close(updatesCh)
-		message, err := funcToCall()
-		if err != nil {
-			logging.FromContext(ctx).WarnContext(ctx, "failed to check for new versions",
-				"error", err)
-			return
-		}
-		updatesCh <- message
-	}()
-
-	return func() {
-		select {
-		case <-ctx.Done():
-			// Context was cancelled
-		case msg, ok := <-updatesCh:
-			if ok && len(msg) > 0 {
-				outFunc(msg)
-			}
-		}
-	}
 }
 
 func updateVersionOutput(updateDetails *versionUpdateDetails) (string, error) {
