@@ -101,16 +101,21 @@ func Test_asyncFunctionCallContextCanceled(t *testing.T) {
 func Test_asyncFunctionCallWaitForResultToWrite(t *testing.T) {
 	t.Parallel()
 	outBuf := testWriter{}
+	done := make(chan bool, 1)
 	inputFunc := func() (string, error) {
+		defer close(done)
 		return "foobar", nil
 	}
 	resultFunc := asyncFunctionCall(context.Background(), inputFunc, func(s string) {
 		fmt.Fprintf(&outBuf, "%s\n", s)
 	})
 
-	// Give goroutine a reasonable time to finish (in theory this test could
-	// give a false negative, in the unhappy case there is a race)
-	time.Sleep(50 * time.Millisecond)
+	select {
+	case <-done:
+		// noop
+	case <-time.After(2 * time.Minute):
+		t.Error("Go routine never ran, was a breakpoint set?")
+	}
 
 	// resultFunc() hasn't been run, no output should appear
 	if got := outBuf.Buf.String(); got != "" {
