@@ -15,7 +15,6 @@
 package updater
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -31,17 +30,6 @@ import (
 
 	"github.com/abcxyz/pkg/testutil"
 )
-
-// Instrumented io.Writer.
-type testWriter struct {
-	Buf    bytes.Buffer
-	Writes int64
-}
-
-func (w *testWriter) Write(p []byte) (n int, err error) {
-	w.Writes++
-	return w.Buf.Write(p)
-}
 
 func TestCheckAppVersion(t *testing.T) {
 	t.Parallel()
