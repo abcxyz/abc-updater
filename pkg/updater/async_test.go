@@ -55,7 +55,9 @@ func Test_asyncFunctionCall(t *testing.T) {
 			t.Parallel()
 			outBuf := testWriter{}
 			resultFunc := asyncFunctionCall(context.Background(), tc.input,
-				func(s string) { fmt.Fprintf(&outBuf, "%s\n", s) })
+				func(s string) {
+					fmt.Fprintf(&outBuf, "%s\n", s)
+				})
 
 			resultFunc()
 			if got := outBuf.Buf.String(); got != tc.want {
@@ -75,8 +77,13 @@ func Test_asyncFunctionCallContextCanceled(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	outBuf := testWriter{}
-	inputFunc := func() (string, error) { time.Sleep(1 * time.Hour); return "should_not_execute", nil }
-	resultFunc := asyncFunctionCall(ctx, inputFunc, func(s string) { fmt.Fprintf(&outBuf, "%s\n", s) })
+	inputFunc := func() (string, error) {
+		time.Sleep(1 * time.Hour)
+		return "should_not_execute", nil
+	}
+	resultFunc := asyncFunctionCall(ctx, inputFunc, func(s string) {
+		fmt.Fprintf(&outBuf, "%s\n", s)
+	})
 
 	// Context canceled before timeouts.
 	cancel()
@@ -97,7 +104,9 @@ func Test_asyncFunctionCallWaitForResultToWrite(t *testing.T) {
 	inputFunc := func() (string, error) {
 		return "foobar", nil
 	}
-	resultFunc := asyncFunctionCall(context.Background(), inputFunc, func(s string) { fmt.Fprintf(&outBuf, "%s\n", s) })
+	resultFunc := asyncFunctionCall(context.Background(), inputFunc, func(s string) {
+		fmt.Fprintf(&outBuf, "%s\n", s)
+	})
 
 	// Give goroutine a reasonable time to finish (in theory this test could
 	// give a false negative, in the unhappy case there is a race)

@@ -20,8 +20,8 @@ import (
 	"github.com/abcxyz/pkg/logging"
 )
 
-// asyncFunctionCall handles the async part of CheckAppVersion, but accepts
-// a function other than CheckAppVersionSync for testing.
+// asyncFunctionCall handles the async part of CheckAppVersionAsync, but accepts
+// a function other than CheckAppVersion for testing.
 func asyncFunctionCall(ctx context.Context, funcToCall func() (string, error), outFunc func(string)) func() {
 	updatesCh := make(chan string, 1)
 

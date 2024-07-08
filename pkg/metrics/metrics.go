@@ -83,8 +83,8 @@ func WithInstallIDFileOverride(path string) Option {
 
 // MetricWriter is a client for reporting metrics about an application's usage.
 type MetricWriter interface {
-	WriteMetric(ctx context.Context, name string, count int64) func()
-	WriteMetricSync(ctx context.Context, name string, count int64) error
+	WriteMetricAsync(ctx context.Context, name string, count int64) func()
+	WriteMetric(ctx context.Context, name string, count int64) error
 }
 
 type client struct {
@@ -180,10 +180,10 @@ type SendMetricRequest struct {
 	InstallID string `json:"installId"`
 }
 
-// WriteMetric calls WriteMetricSync in a go routine.
+// WriteMetricAsync calls WriteMetric in a go routine.
 // It returns a closure to be run after program logic which will block until a response is returned
 // or provided context is canceled. If no provided deadline in context, defaults to 2 seconds.
-func (c *client) WriteMetric(ctx context.Context, name string, count int64) func() {
+func (c *client) WriteMetricAsync(ctx context.Context, name string, count int64) func() {
 	cancel := func() {}
 	if _, ok := ctx.Deadline(); !ok {
 		ctx, cancel = context.WithTimeout(ctx, time.Second*2)
@@ -191,14 +191,14 @@ func (c *client) WriteMetric(ctx context.Context, name string, count int64) func
 
 	return asyncFunctionCall(ctx, func() error {
 		defer cancel()
-		return c.WriteMetricSync(ctx, name, count)
+		return c.WriteMetric(ctx, name, count)
 	})
 }
 
-// WriteMetricSync sends information about application usage. Noop if metrics
+// WriteMetric sends information about application usage. Noop if metrics
 // are opted out. Blocks until completion.
 // Accepts a context for cancellation.
-func (c *client) WriteMetricSync(ctx context.Context, name string, count int64) error {
+func (c *client) WriteMetric(ctx context.Context, name string, count int64) error {
 	if c.OptOut {
 		return nil
 	}

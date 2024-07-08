@@ -25,6 +25,7 @@ import (
 // Note: These tests rely on timing and could be flaky if breakpoints are used.
 func Test_asyncFunctionCall(t *testing.T) {
 	t.Parallel()
+
 	cases := []struct {
 		name  string
 		input func() error
@@ -55,9 +56,7 @@ func Test_asyncFunctionCallContextCanceled(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	inputFunc := func() error {
-		t.Helper()
 		time.Sleep(1 * time.Hour)
-		t.Fatalf("this should not execute")
 		return fmt.Errorf("should not execute")
 	}
 	resultFunc := asyncFunctionCall(ctx, inputFunc)

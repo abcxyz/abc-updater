@@ -43,7 +43,7 @@ func (w *testWriter) Write(p []byte) (n int, err error) {
 	return w.Buf.Write(p)
 }
 
-func TestCheckAppVersionSync(t *testing.T) {
+func TestCheckAppVersion(t *testing.T) {
 	t.Parallel()
 
 	testAppResponse := AppResponse{
@@ -199,7 +199,7 @@ func TestCheckAppVersionSync(t *testing.T) {
 				}
 			}
 
-			output, err := CheckAppVersionSync(context.Background(), params)
+			output, err := CheckAppVersion(context.Background(), params)
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
 			}
