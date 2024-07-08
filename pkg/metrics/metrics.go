@@ -181,8 +181,8 @@ type SendMetricRequest struct {
 }
 
 // WriteMetric sends information about application usage, blocking until
-// completion. It accepts a context for cancellation, and has a default timeout
-// of 5 seconds. It is a noop if metrics are opted out.
+// completion. It accepts a context for cancellation, or will time out after 5
+// seconds, whatever is sooner. It is a noop if metrics are opted out.
 func (c *client) WriteMetric(ctx context.Context, name string, count int64) error {
 	if c.OptOut {
 		return nil
@@ -230,8 +230,8 @@ func (c *client) WriteMetric(ctx context.Context, name string, count int64) erro
 }
 
 // WriteMetricAsync is like [WriteMetric], but it sends the metric in the
-// background in a goroutine. The resulting closure can be defered to ensure the
-// metric finishes writing before process termination. For example:
+// background in a goroutine. The resulting closure can be deferred to ensure
+// the metric finishes writing before process termination. For example:
 //
 //	done := client.WriteMetricsAsync(ctx, "foo", 1)
 //	defer done()

@@ -132,7 +132,7 @@ const (
 
 // CheckAppVersion checks if a newer version of an app is available. Any
 // relevant update info will be returned as a string. It accepts a context for
-// cancellation, and has a default timeout of 5 seconds.
+// cancellation, or will time out after 5 seconds, whatever is sooner.
 func CheckAppVersion(ctx context.Context, params *CheckVersionParams) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
