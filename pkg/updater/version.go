@@ -32,7 +32,6 @@ import (
 	"github.com/sethvargo/go-envconfig"
 
 	"github.com/abcxyz/abc-updater/pkg/localstore"
-	"github.com/abcxyz/pkg/logging"
 )
 
 // CheckVersionParams are the parameters for checking for application updates.
@@ -131,31 +130,13 @@ const (
 	maxErrorResponseBytes = 2048
 )
 
-// CheckAppVersion calls CheckAppVersionSync in a go routine. It returns a closure
-// to be run after program logic which will block until a response is returned
-// or provided context is canceled. If no provided deadline in context, defaults to 2 seconds.
-// If there is an update, out() will be called during the
-// returned closure.
-//
-// If no update is available: out() will not be called.
-// If there is an error: out() will not be called, message will be logged as WARN.
-// If the context is canceled: out() is not called.
-// Example out(): `func(s string) {fmt.Fprintln(os.Stderr, s)}`.
-func CheckAppVersion(ctx context.Context, params *CheckVersionParams, out func(string)) func() {
-	cancel := func() {}
-	if _, ok := ctx.Deadline(); !ok {
-		ctx, cancel = context.WithTimeout(ctx, time.Second*2)
-	}
+// CheckAppVersion checks if a newer version of an app is available. Any
+// relevant update info will be returned as a string. It accepts a context for
+// cancellation, or will time out after 5 seconds, whatever is sooner.
+func CheckAppVersion(ctx context.Context, params *CheckVersionParams) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 
-	return asyncFunctionCall(ctx, func() (string, error) {
-		defer cancel()
-		return CheckAppVersionSync(ctx, params)
-	}, out)
-}
-
-// CheckAppVersionSync checks if a newer version of an app is available. Any relevant update info will be
-// returned as a string. Accepts a context for cancellation.
-func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (string, error) {
 	lookuper := params.Lookuper
 	if lookuper == nil {
 		lookuper = envconfig.OsLookuper()
@@ -258,31 +239,29 @@ func CheckAppVersionSync(ctx context.Context, params *CheckVersionParams) (strin
 	return "", nil
 }
 
-// asyncFunctionCall handles the async part of CheckAppVersion, but accepts
-// a function other than CheckAppVersionSync for testing.
-func asyncFunctionCall(ctx context.Context, funcToCall func() (string, error), outFunc func(string)) func() {
-	updatesCh := make(chan string, 1)
+// CheckAppVersionAsync calls CheckAppVersion in a go routine. It returns a
+// closure to be run after program logic which will block until a response is
+// returned or provided context is canceled. The response will include the new
+// version available (if any), and any errors that occur.
+func CheckAppVersionAsync(ctx context.Context, params *CheckVersionParams) func() (string, error) {
+	type result struct {
+		val string
+		err error
+	}
 
+	resultCh := make(chan *result, 1)
 	go func() {
-		defer close(updatesCh)
-		message, err := funcToCall()
-		if err != nil {
-			logging.FromContext(ctx).WarnContext(ctx, "failed to check for new versions",
-				"error", err)
-			return
+		defer close(resultCh)
+		val, err := CheckAppVersion(ctx, params)
+		resultCh <- &result{
+			val: val,
+			err: err,
 		}
-		updatesCh <- message
 	}()
 
-	return func() {
-		select {
-		case <-ctx.Done():
-			// Context was cancelled
-		case msg, ok := <-updatesCh:
-			if ok && len(msg) > 0 {
-				outFunc(msg)
-			}
-		}
+	return func() (string, error) {
+		result := <-resultCh
+		return result.val, result.err
 	}
 }
 

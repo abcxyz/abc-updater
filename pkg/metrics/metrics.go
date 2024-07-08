@@ -84,6 +84,7 @@ func WithInstallIDFileOverride(path string) Option {
 // MetricWriter is a client for reporting metrics about an application's usage.
 type MetricWriter interface {
 	WriteMetric(ctx context.Context, name string, count int64) error
+	WriteMetricAsync(ctx context.Context, name string, count int64) func() error
 }
 
 type client struct {
@@ -179,13 +180,16 @@ type SendMetricRequest struct {
 	InstallID string `json:"installId"`
 }
 
-// WriteMetric sends information about application usage. Noop if metrics
-// are opted out.
-// Accepts a context for cancellation.
+// WriteMetric sends information about application usage, blocking until
+// completion. It accepts a context for cancellation, or will time out after 5
+// seconds, whatever is sooner. It is a noop if metrics are opted out.
 func (c *client) WriteMetric(ctx context.Context, name string, count int64) error {
 	if c.OptOut {
 		return nil
 	}
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(&SendMetricRequest{
@@ -223,6 +227,33 @@ func (c *client) WriteMetric(ctx context.Context, name string, count int64) erro
 	// For now, ignore response body for happy responses.
 	// Future versions may parse warnings for debug logging.
 	return nil
+}
+
+// WriteMetricAsync is like [WriteMetric], but it sends the metric in the
+// background in a goroutine. The resulting closure can be deferred to ensure
+// the metric finishes writing before process termination. For example:
+//
+//	done := client.WriteMetricsAsync(ctx, "foo", 1)
+//	defer done()
+//
+// Or with error handling:
+//
+//	done := client.WriteMetricsAsync(ctx, "foo", 1)
+//	defer func() {
+//	  if err := done(); err != nil {
+//	    // handle error
+//	  }
+//	}()
+func (c *client) WriteMetricAsync(ctx context.Context, name string, count int64) func() error {
+	errCh := make(chan error, 1)
+	go func() {
+		defer close(errCh)
+		errCh <- c.WriteMetric(ctx, name, count)
+	}()
+
+	return func() error {
+		return <-errCh
+	}
 }
 
 // NoopWriter returns a MetricWriter which is opted-out and will not send metrics.
