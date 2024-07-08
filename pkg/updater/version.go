@@ -130,31 +130,13 @@ const (
 	maxErrorResponseBytes = 2048
 )
 
-// CheckAppVersionAsync calls CheckAppVersion in a go routine. It returns a closure
-// to be run after program logic which will block until a response is returned
-// or provided context is canceled. If no provided deadline in context, defaults to 2 seconds.
-// If there is an update, out() will be called during the
-// returned closure.
-//
-// If no update is available: out() will not be called.
-// If there is an error: out() will not be called, message will be logged as WARN.
-// If the context is canceled: out() is not called.
-// Example out(): `func(s string) {fmt.Fprintln(os.Stderr, s)}`.
-func CheckAppVersionAsync(ctx context.Context, params *CheckVersionParams, out func(string)) func() {
-	cancel := func() {}
-	if _, ok := ctx.Deadline(); !ok {
-		ctx, cancel = context.WithTimeout(ctx, time.Second*2)
-	}
-
-	return asyncFunctionCall(ctx, func() (string, error) {
-		defer cancel()
-		return CheckAppVersion(ctx, params)
-	}, out)
-}
-
-// CheckAppVersion checks if a newer version of an app is available. Any relevant update info will be
-// returned as a string. Accepts a context for cancellation.
+// CheckAppVersion checks if a newer version of an app is available. Any
+// relevant update info will be returned as a string. It accepts a context for
+// cancellation, and has a default timeout of 5 seconds.
 func CheckAppVersion(ctx context.Context, params *CheckVersionParams) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	lookuper := params.Lookuper
 	if lookuper == nil {
 		lookuper = envconfig.OsLookuper()
@@ -255,6 +237,32 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) (string, e
 	}
 
 	return "", nil
+}
+
+// CheckAppVersionAsync calls CheckAppVersion in a go routine. It returns a
+// closure to be run after program logic which will block until a response is
+// returned or provided context is canceled. The response will include the new
+// version available (if any), and any errors that occur.
+func CheckAppVersionAsync(ctx context.Context, params *CheckVersionParams) func() (string, error) {
+	type result struct {
+		val string
+		err error
+	}
+
+	resultCh := make(chan *result, 1)
+	go func() {
+		defer close(resultCh)
+		val, err := CheckAppVersion(ctx, params)
+		resultCh <- &result{
+			val: val,
+			err: err,
+		}
+	}()
+
+	return func() (string, error) {
+		result := <-resultCh
+		return result.val, result.err
+	}
 }
 
 func updateVersionOutput(updateDetails *versionUpdateDetails) (string, error) {
