@@ -353,3 +353,141 @@ func TestWriteMetric(t *testing.T) {
 		})
 	}
 }
+
+func TestWriteMetricAsync(t *testing.T) {
+	t.Parallel()
+
+	// Record calls made to test server. Separate per test using a per-test
+	// unique id in URL.
+	var reqMap sync.Map
+
+	// Request body is intentionally leaked to allow for inspection in test cases.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Add 10ms of latency to response to allow testing timeout.
+		time.Sleep(time.Duration(10 * time.Millisecond))
+		saveReq := r.Clone(context.Background())
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("error copying body: %s", err.Error())
+		}
+		saveReq.Body = io.NopCloser(bytes.NewBuffer(body))
+		r.Body = io.NopCloser(bytes.NewBuffer(body))
+		_, prevExist := reqMap.Swap(r.RequestURI, saveReq)
+		if prevExist {
+			t.Fatalf("multiple requests to same url: %s", r.RequestURI)
+		}
+		if !strings.HasSuffix(r.RequestURI, "/sendMetrics") {
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "ok")
+	}))
+
+	t.Cleanup(func() {
+		ts.Close()
+	})
+
+	cases := []struct {
+		name          string
+		metric        string
+		count         int64
+		client        *client
+		timeoutMillis int
+		wantRequest   *SendMetricRequest
+		wantErr       string
+	}{
+		{
+			name:   "metric_success",
+			metric: "foo",
+			count:  1,
+			client: defaultClient(),
+			wantRequest: &SendMetricRequest{
+				AppID:      testAppID,
+				AppVersion: testVersion,
+				Metrics:    map[string]int64{"foo": 1},
+				InstallID:  testInstallID,
+			},
+		},
+		{
+			name:          "metric_success_timeout_set",
+			metric:        "foo",
+			count:         1,
+			client:        defaultClient(),
+			timeoutMillis: 4000,
+			wantRequest: &SendMetricRequest{
+				AppID:      testAppID,
+				AppVersion: testVersion,
+				Metrics:    map[string]int64{"foo": 1},
+				InstallID:  testInstallID,
+			},
+		},
+		{
+			name:   "metric_opt_out_noop",
+			metric: "foo",
+			count:  1,
+			client: func() *client {
+				c := defaultClient()
+				c.OptOut = true
+				return c
+			}(),
+			wantRequest: nil,
+		},
+		{
+			name:          "metric_failure_timeout",
+			metric:        "foo",
+			count:         1,
+			client:        defaultClient(),
+			timeoutMillis: 9,
+			wantRequest:   nil,
+			wantErr:       "context deadline exceeded",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			if tc.timeoutMillis > 0 {
+				var done func()
+				ctx, done = context.WithTimeout(ctx, time.Duration(tc.timeoutMillis)*time.Millisecond)
+				defer done()
+			}
+
+			relativePath := fmt.Sprintf("/%d", rand.Uint64()) //nolint:gosec
+			tc.client.Config.ServerURL = fmt.Sprintf("%s%s", ts.URL, relativePath)
+
+			err := tc.client.WriteMetricAsync(ctx, tc.metric, tc.count)()
+
+			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
+				t.Error(diff)
+			}
+			val, ok := reqMap.Load(relativePath + "/sendMetrics")
+			if tc.wantRequest != nil {
+				if !ok {
+					t.Errorf("no http request received, expected body of: %v", *tc.wantRequest)
+				}
+				request, ok := val.(*http.Request)
+				if !ok {
+					t.Fatal("Expected *httpRequest in sync map, but cast failed.")
+				}
+				defer request.Body.Close()
+
+				var got SendMetricRequest
+				if err := json.NewDecoder(request.Body).Decode(&got); err != nil {
+					t.Errorf("error reading request to test server: %s", err.Error())
+				}
+				if diff := cmp.Diff(&got, tc.wantRequest); diff != "" {
+					t.Errorf("unexpected request body. Diff (-got +want): %s", diff)
+				}
+			} else {
+				if ok {
+					t.Errorf("did not expect a request but got one")
+				}
+			}
+		})
+	}
+}

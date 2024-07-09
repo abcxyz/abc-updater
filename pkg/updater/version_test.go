@@ -199,6 +199,90 @@ func TestCheckAppVersion(t *testing.T) {
 	}
 }
 
+func TestCheckAppVersionAsync(t *testing.T) {
+	t.Parallel()
+	sampleAppResponse, err := json.Marshal(AppResponse{
+		AppID:          "sample_app_1",
+		AppName:        "Sample App 1",
+		AppRepoURL:     "https://github.com/abcxyz/sample_app_1",
+		CurrentVersion: "1.0.0",
+	})
+	if err != nil {
+		t.Errorf("failed to encode json %v", err)
+	}
+
+	// Add 10ms of latency to response to allow testing timeout.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(time.Duration(10 * time.Millisecond))
+
+		if !strings.HasSuffix(r.URL.Path, "sample_app_1/data.json") {
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "%s\n", string(sampleAppResponse))
+	}))
+	t.Cleanup(func() {
+		ts.Close()
+	})
+
+	cases := []struct {
+		name          string
+		timeoutMillis int
+		want          string
+		wantErr       string
+	}{
+		{
+			name: "happy_path_no_error",
+			want: `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
+		},
+		{
+			name:          "happy_path_no_error_provided_timeout",
+			timeoutMillis: 4000,
+			want:          `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
+		},
+		{
+			name:          "time_out_causes_error",
+			timeoutMillis: 9, // test server adds 10ms of latency, so this will timeout.
+			wantErr:       "context deadline exceeded",
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			if tc.timeoutMillis > 0 {
+				var done func()
+				ctx, done = context.WithTimeout(ctx, time.Duration(tc.timeoutMillis)*time.Millisecond)
+				defer done()
+			}
+
+			cacheFile := filepath.Join(t.TempDir(), "data.json")
+
+			params := &CheckVersionParams{
+				AppID:             "sample_app_1",
+				Version:           "0.1.2",
+				Lookuper:          envconfig.MapLookuper(map[string]string{"UPDATER_URL": ts.URL}),
+				CacheFileOverride: cacheFile,
+			}
+
+			output, err := CheckAppVersion(ctx, params)
+			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
+				t.Error(diff)
+			}
+
+			if diff := cmp.Diff(output, tc.want); diff != "" {
+				t.Errorf("output was not as expected (-got,+want): %s", diff)
+			}
+		})
+	}
+}
+
 func TestIsIgnored(t *testing.T) {
 	t.Parallel()
 
