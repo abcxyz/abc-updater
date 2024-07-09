@@ -213,7 +213,7 @@ func TestCheckAppVersionAsync(t *testing.T) {
 
 	// Add 10ms of latency to response to allow testing timeout.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(time.Duration(10 * time.Millisecond))
+		time.Sleep(10 * time.Millisecond)
 
 		if !strings.HasSuffix(r.URL.Path, "sample_app_1/data.json") {
 			w.WriteHeader(http.StatusNotFound)

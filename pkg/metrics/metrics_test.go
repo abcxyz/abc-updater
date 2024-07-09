@@ -364,7 +364,7 @@ func TestWriteMetricAsync(t *testing.T) {
 	// Request body is intentionally leaked to allow for inspection in test cases.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Add 10ms of latency to response to allow testing timeout.
-		time.Sleep(time.Duration(10 * time.Millisecond))
+		time.Sleep(10 * time.Millisecond)
 		saveReq := r.Clone(context.Background())
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
