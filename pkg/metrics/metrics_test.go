@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -407,10 +408,13 @@ func TestWriteMetricAsync(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			var saveReqMutex sync.Mutex
 			var saveReq *http.Request
 
 			// Request body is intentionally leaked to allow for inspection in test cases.
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				saveReqMutex.Lock()
+				defer saveReqMutex.Unlock()
 				if saveReq != nil {
 					t.Fatal("multiple requests in a single test")
 				}
@@ -448,6 +452,9 @@ func TestWriteMetricAsync(t *testing.T) {
 			tc.client.Config.ServerURL = fmt.Sprintf("%s%s", ts.URL, relativePath)
 
 			err := tc.client.WriteMetricAsync(ctx, tc.metric, tc.count)()
+
+			saveReqMutex.Lock()
+			defer saveReqMutex.Unlock()
 
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
