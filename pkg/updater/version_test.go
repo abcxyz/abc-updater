@@ -57,9 +57,7 @@ func TestCheckAppVersion(t *testing.T) {
 		fmt.Fprintf(w, "%s\n", string(sampleAppResponse))
 	}))
 
-	t.Cleanup(func() {
-		ts.Close()
-	})
+	t.Cleanup(ts.Close)
 
 	cases := []struct {
 		name    string
@@ -224,9 +222,7 @@ func TestCheckAppVersionAsync(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "%s\n", string(sampleAppResponse))
 	}))
-	t.Cleanup(func() {
-		ts.Close()
-	})
+	t.Cleanup(ts.Close)
 
 	cases := []struct {
 		name          string

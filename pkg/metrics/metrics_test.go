@@ -24,7 +24,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -206,49 +205,6 @@ func TestNew(t *testing.T) {
 func TestWriteMetric(t *testing.T) {
 	t.Parallel()
 
-	// Record calls made to test server. Separate per test using a per-test
-	// unique id in URL.
-	var reqMap sync.Map
-
-	// Request body is intentionally leaked to allow for inspection in test cases.
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		saveReq := r.Clone(context.Background())
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Fatalf("error copying body: %s", err.Error())
-		}
-		saveReq.Body = io.NopCloser(bytes.NewBuffer(body))
-		r.Body = io.NopCloser(bytes.NewBuffer(body))
-		_, prevExist := reqMap.Swap(r.RequestURI, saveReq)
-		if prevExist {
-			t.Fatalf("multiple requests to same url: %s", r.RequestURI)
-		}
-		if !strings.HasSuffix(r.RequestURI, "/sendMetrics") {
-			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
-			return
-		}
-
-		if strings.HasSuffix(r.RequestURI, "400/sendMetrics") {
-			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintln(w, "bad request")
-			return
-		}
-
-		if strings.HasSuffix(r.RequestURI, "500/sendMetrics") {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, "internal error")
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "ok")
-	}))
-
-	t.Cleanup(func() {
-		ts.Close()
-	})
-
 	cases := []struct {
 		name                 string
 		metric               string
@@ -315,38 +271,72 @@ func TestWriteMetric(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			var saveReq *http.Request
+
+			// Request body is intentionally leaked to allow for inspection in test cases.
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if saveReq != nil {
+					t.Fatal("multiple requests in a single test")
+				}
+				saveReq = r.Clone(context.Background())
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Fatalf("error copying body: %s", err.Error())
+				}
+				saveReq.Body = io.NopCloser(bytes.NewBuffer(body))
+				r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+				if !strings.HasSuffix(r.RequestURI, "/sendMetrics") {
+					w.WriteHeader(http.StatusNotFound)
+					fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
+					return
+				}
+
+				if strings.HasSuffix(r.RequestURI, "400/sendMetrics") {
+					w.WriteHeader(http.StatusBadRequest)
+					fmt.Fprintln(w, "bad request")
+					return
+				}
+
+				if strings.HasSuffix(r.RequestURI, "500/sendMetrics") {
+					w.WriteHeader(http.StatusInternalServerError)
+					fmt.Fprintln(w, "internal error")
+					return
+				}
+
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprintln(w, "ok")
+			}))
+
+			t.Cleanup(ts.Close)
+
 			ctx := context.Background()
-			relativePath := fmt.Sprintf("/%d", rand.Uint64()) //nolint:gosec
+			var relativePath string
 			if tc.responseCodeOverride != 0 {
-				relativePath = fmt.Sprintf("%s/%d", relativePath, tc.responseCodeOverride)
+				relativePath = fmt.Sprintf("%d", tc.responseCodeOverride)
 			}
-			tc.client.Config.ServerURL = fmt.Sprintf("%s%s", ts.URL, relativePath)
+			tc.client.Config.ServerURL = fmt.Sprintf("%s/%s", ts.URL, relativePath)
 
 			err := tc.client.WriteMetric(ctx, tc.metric, tc.count)
 
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
 			}
-			val, ok := reqMap.Load(relativePath + "/sendMetrics")
 			if tc.wantRequest != nil {
-				if !ok {
+				if saveReq == nil {
 					t.Errorf("no http request received, expected body of: %v", *tc.wantRequest)
 				}
-				request, ok := val.(*http.Request)
-				if !ok {
-					t.Fatal("Expected *httpRequest in sync map, but cast failed.")
-				}
-				defer request.Body.Close()
+				defer saveReq.Body.Close()
 
 				var got SendMetricRequest
-				if err := json.NewDecoder(request.Body).Decode(&got); err != nil {
+				if err := json.NewDecoder(saveReq.Body).Decode(&got); err != nil {
 					t.Errorf("error reading request to test server: %s", err.Error())
 				}
 				if diff := cmp.Diff(&got, tc.wantRequest); diff != "" {
 					t.Errorf("unexpected request body. Diff (-got +want): %s", diff)
 				}
 			} else {
-				if ok {
+				if saveReq != nil {
 					t.Errorf("did not expect a request but got one")
 				}
 			}
@@ -356,39 +346,6 @@ func TestWriteMetric(t *testing.T) {
 
 func TestWriteMetricAsync(t *testing.T) {
 	t.Parallel()
-
-	// Record calls made to test server. Separate per test using a per-test
-	// unique id in URL.
-	var reqMap sync.Map
-
-	// Request body is intentionally leaked to allow for inspection in test cases.
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Add 10ms of latency to response to allow testing timeout.
-		time.Sleep(10 * time.Millisecond)
-		saveReq := r.Clone(context.Background())
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Fatalf("error copying body: %s", err.Error())
-		}
-		saveReq.Body = io.NopCloser(bytes.NewBuffer(body))
-		r.Body = io.NopCloser(bytes.NewBuffer(body))
-		_, prevExist := reqMap.Swap(r.RequestURI, saveReq)
-		if prevExist {
-			t.Fatalf("multiple requests to same url: %s", r.RequestURI)
-		}
-		if !strings.HasSuffix(r.RequestURI, "/sendMetrics") {
-			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "ok")
-	}))
-
-	t.Cleanup(func() {
-		ts.Close()
-	})
 
 	cases := []struct {
 		name          string
@@ -450,6 +407,36 @@ func TestWriteMetricAsync(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			var saveReq *http.Request
+
+			// Request body is intentionally leaked to allow for inspection in test cases.
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if saveReq != nil {
+					t.Fatal("multiple requests in a single test")
+				}
+
+				// Add 10ms of latency to response to allow testing timeout.
+				time.Sleep(10 * time.Millisecond)
+				saveReq = r.Clone(context.Background())
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Fatalf("error copying body: %s", err.Error())
+				}
+				saveReq.Body = io.NopCloser(bytes.NewBuffer(body))
+				r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+				if !strings.HasSuffix(r.RequestURI, "/sendMetrics") {
+					w.WriteHeader(http.StatusNotFound)
+					fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
+					return
+				}
+
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprintln(w, "ok")
+			}))
+
+			t.Cleanup(ts.Close)
+
 			ctx := context.Background()
 			if tc.timeoutMillis > 0 {
 				var done func()
@@ -465,26 +452,22 @@ func TestWriteMetricAsync(t *testing.T) {
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
 			}
-			val, ok := reqMap.Load(relativePath + "/sendMetrics")
 			if tc.wantRequest != nil {
-				if !ok {
+				if saveReq == nil {
 					t.Errorf("no http request received, expected body of: %v", *tc.wantRequest)
 				}
-				request, ok := val.(*http.Request)
-				if !ok {
-					t.Fatal("Expected *httpRequest in sync map, but cast failed.")
-				}
-				defer request.Body.Close()
+
+				defer saveReq.Body.Close()
 
 				var got SendMetricRequest
-				if err := json.NewDecoder(request.Body).Decode(&got); err != nil {
+				if err := json.NewDecoder(saveReq.Body).Decode(&got); err != nil {
 					t.Errorf("error reading request to test server: %s", err.Error())
 				}
 				if diff := cmp.Diff(&got, tc.wantRequest); diff != "" {
 					t.Errorf("unexpected request body. Diff (-got +want): %s", diff)
 				}
 			} else {
-				if ok {
+				if saveReq != nil {
 					t.Errorf("did not expect a request but got one")
 				}
 			}
