@@ -392,3 +392,27 @@ func TestWriteMetricAsync(t *testing.T) {
 		})
 	}
 }
+
+func TestContext(t *testing.T) {
+	t.Parallel()
+
+	client1 := defaultClient()
+	client2 := defaultClient()
+	client2.InstallID = "somethingDifferent"
+
+	checkFromContext(context.Background(), t, NoopWriter())
+
+	ctx := WithLogger(context.Background(), client1)
+	checkFromContext(ctx, t, client1)
+
+	ctx = WithLogger(ctx, client2)
+	checkFromContext(ctx, t, client2)
+}
+
+func checkFromContext(ctx context.Context, tb testing.TB, want MetricWriter) {
+	tb.Helper()
+
+	if diff := cmp.Diff(want, FromContext(ctx)); diff != "" {
+		tb.Errorf("unexpected metrics client in context diff (-got +want): %s", diff)
+	}
+}

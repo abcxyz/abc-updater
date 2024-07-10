@@ -34,10 +34,16 @@ import (
 const (
 	installIDFileName     = "id.json"
 	maxErrorResponseBytes = 2048
+
+	// metricsKey points to the value in the context where the logger is stored.
+	metricsKey = contextKey("metricsClient")
 )
 
 // Assert client implements MetricWriter.
 var _ MetricWriter = (*client)(nil)
+
+// contextKey is a private string type to prevent collisions in the context map.
+type contextKey string
 
 type metricsConfig struct {
 	ServerURL string `env:"METRICS_URL, default=https://abc-updater-metrics.tycho.joonix.net"`
@@ -259,4 +265,18 @@ func (c *client) WriteMetricAsync(ctx context.Context, name string, count int64)
 // NoopWriter returns a MetricWriter which is opted-out and will not send metrics.
 func NoopWriter() MetricWriter {
 	return &client{OptOut: true}
+}
+
+// WithClient creates a new context with the provided logger attached.
+func WithLogger(ctx context.Context, client *client) context.Context {
+	return context.WithValue(ctx, metricsKey, client)
+}
+
+// FromContext returns the metrics client stored in the context.
+// If no such client exists, a default noop client is returned.
+func FromContext(ctx context.Context) MetricWriter {
+	if client, ok := ctx.Value(metricsKey).(MetricWriter); ok {
+		return client
+	}
+	return NoopWriter()
 }
