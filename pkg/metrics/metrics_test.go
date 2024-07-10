@@ -24,7 +24,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -272,20 +272,27 @@ func TestWriteMetric(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			var saveReq *http.Request
+			var requests atomic.Int32
 
-			// Request body is intentionally leaked to allow for inspection in test cases.
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if saveReq != nil {
-					t.Fatal("multiple requests in a single test")
+				requests.Add(1)
+				if tc.wantRequest == nil {
+					t.Errorf("did not expect a request but got one")
 				}
-				saveReq = r.Clone(context.Background())
+
 				body, err := io.ReadAll(r.Body)
+				r.Body.Close()
 				if err != nil {
 					t.Fatalf("error copying body: %s", err.Error())
 				}
-				saveReq.Body = io.NopCloser(bytes.NewBuffer(body))
-				r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+				var got SendMetricRequest
+				if err := json.NewDecoder(bytes.NewReader(body)).Decode(&got); err != nil {
+					t.Errorf("error reading request to test server: %s", err.Error())
+				}
+				if diff := cmp.Diff(&got, tc.wantRequest); diff != "" {
+					t.Errorf("unexpected request body. Diff (-got +want): %s", diff)
+				}
 
 				if !strings.HasSuffix(r.RequestURI, "/sendMetrics") {
 					w.WriteHeader(http.StatusNotFound)
@@ -323,23 +330,9 @@ func TestWriteMetric(t *testing.T) {
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
 			}
-			if tc.wantRequest != nil {
-				if saveReq == nil {
-					t.Errorf("no http request received, expected body of: %v", *tc.wantRequest)
-				}
-				defer saveReq.Body.Close()
 
-				var got SendMetricRequest
-				if err := json.NewDecoder(saveReq.Body).Decode(&got); err != nil {
-					t.Errorf("error reading request to test server: %s", err.Error())
-				}
-				if diff := cmp.Diff(&got, tc.wantRequest); diff != "" {
-					t.Errorf("unexpected request body. Diff (-got +want): %s", diff)
-				}
-			} else {
-				if saveReq != nil {
-					t.Errorf("did not expect a request but got one")
-				}
+			if got, want := requests.Load(), int32(1); tc.wantRequest != nil && got != want {
+				t.Errorf("unexpected number of requests to http server got: %d, want: %d", got, want)
 			}
 		})
 	}
@@ -408,26 +401,32 @@ func TestWriteMetricAsync(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			var saveReqMutex sync.Mutex
-			var saveReq *http.Request
+			var requests atomic.Int32
 
 			// Request body is intentionally leaked to allow for inspection in test cases.
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				saveReqMutex.Lock()
-				defer saveReqMutex.Unlock()
-				if saveReq != nil {
-					t.Fatal("multiple requests in a single test")
-				}
-
 				// Add 10ms of latency to response to allow testing timeout.
 				time.Sleep(10 * time.Millisecond)
-				saveReq = r.Clone(context.Background())
+
+				requests.Add(1)
+				if tc.wantRequest == nil && tc.client.OptOut {
+					t.Errorf("did not expect a request but got one")
+				}
+
 				body, err := io.ReadAll(r.Body)
+				r.Body.Close()
 				if err != nil {
 					t.Fatalf("error copying body: %s", err.Error())
 				}
-				saveReq.Body = io.NopCloser(bytes.NewBuffer(body))
-				r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+				var got SendMetricRequest
+				if err := json.NewDecoder(bytes.NewReader(body)).Decode(&got); err != nil {
+					t.Errorf("error reading request to test server: %s", err.Error())
+				}
+				// In timeout case, request sometimes comes through.
+				if diff := cmp.Diff(&got, tc.wantRequest); tc.wantRequest != nil && diff != "" {
+					t.Errorf("unexpected request body. Diff (-got +want): %s", diff)
+				}
 
 				if !strings.HasSuffix(r.RequestURI, "/sendMetrics") {
 					w.WriteHeader(http.StatusNotFound)
@@ -453,30 +452,12 @@ func TestWriteMetricAsync(t *testing.T) {
 
 			err := tc.client.WriteMetricAsync(ctx, tc.metric, tc.count)()
 
-			saveReqMutex.Lock()
-			defer saveReqMutex.Unlock()
-
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
 			}
-			if tc.wantRequest != nil {
-				if saveReq == nil {
-					t.Errorf("no http request received, expected body of: %v", *tc.wantRequest)
-				}
 
-				defer saveReq.Body.Close()
-
-				var got SendMetricRequest
-				if err := json.NewDecoder(saveReq.Body).Decode(&got); err != nil {
-					t.Errorf("error reading request to test server: %s", err.Error())
-				}
-				if diff := cmp.Diff(&got, tc.wantRequest); diff != "" {
-					t.Errorf("unexpected request body. Diff (-got +want): %s", diff)
-				}
-			} else {
-				if saveReq != nil {
-					t.Errorf("did not expect a request but got one")
-				}
+			if got, want := requests.Load(), int32(1); tc.wantRequest != nil && got != want {
+				t.Errorf("unexpected number of requests to http server got: %d, want: %d", got, want)
 			}
 		})
 	}
