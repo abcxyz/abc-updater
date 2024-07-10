@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sethvargo/go-envconfig"
@@ -51,8 +52,9 @@ type metricsConfig struct {
 }
 
 type options struct {
-	httpClient *http.Client
-	lookuper   envconfig.Lookuper
+	httpClient   *http.Client
+	lookuper     envconfig.Lookuper
+	errorHandler func(ctx context.Context, err error)
 	// Optional override for install id file location. Mostly intended for testing.
 	// If empty uses default location.
 	installIDFileOverride string
@@ -87,19 +89,32 @@ func WithInstallIDFileOverride(path string) Option {
 	}
 }
 
+// WithAsyncErrorHandler registers a function to handle any errors occurring
+// during async metric writing. It may be run after the context has
+// timed out, so long-lived blocking operations are discouraged.
+func WithAsyncErrorHandler(handler func(ctx context.Context, err error)) Option {
+	return func(o *options) *options {
+		o.errorHandler = handler
+		return o
+	}
+}
+
 // MetricWriter is a client for reporting metrics about an application's usage.
 type MetricWriter interface {
 	WriteMetric(ctx context.Context, name string, count int64) error
-	WriteMetricAsync(ctx context.Context, name string, count int64) func() error
+	WriteMetricAsync(ctx context.Context, name string, count int64)
+	Close()
 }
 
 type client struct {
-	AppID      string
-	AppVersion string
-	InstallID  string
-	HTTPClient *http.Client
-	OptOut     bool
-	Config     *metricsConfig
+	AppID        string
+	AppVersion   string
+	InstallID    string
+	HTTPClient   *http.Client
+	OptOut       bool
+	Config       *metricsConfig
+	ErrorHandler func(ctx context.Context, err error)
+	AsyncRunners sync.WaitGroup
 }
 
 // New provides a MetricWriter based on provided values and options.
@@ -163,11 +178,12 @@ func New(ctx context.Context, appID, version string, opt ...Option) (MetricWrite
 	}
 
 	return &client{
-		AppID:      appID,
-		AppVersion: version,
-		InstallID:  installID,
-		HTTPClient: opts.httpClient,
-		Config:     &c,
+		AppID:        appID,
+		AppVersion:   version,
+		InstallID:    installID,
+		HTTPClient:   opts.httpClient,
+		Config:       &c,
+		ErrorHandler: opts.errorHandler,
 	}, nil
 }
 
@@ -250,16 +266,24 @@ func (c *client) WriteMetric(ctx context.Context, name string, count int64) erro
 //	    // handle error
 //	  }
 //	}()
-func (c *client) WriteMetricAsync(ctx context.Context, name string, count int64) func() error {
-	errCh := make(chan error, 1)
-	go func() {
-		defer close(errCh)
-		errCh <- c.WriteMetric(ctx, name, count)
-	}()
-
-	return func() error {
-		return <-errCh
+func (c *client) WriteMetricAsync(ctx context.Context, name string, count int64) {
+	if c.OptOut {
+		return
 	}
+	c.AsyncRunners.Add(1)
+	go func() {
+		if err := c.WriteMetric(ctx, name, count); err != nil {
+			c.ErrorHandler(ctx, err)
+		}
+		c.AsyncRunners.Done()
+	}()
+}
+
+// Close blocks for all async Metrics to finish. Operations after Close()
+// returns will be noops.
+func (c *client) Close() {
+	c.AsyncRunners.Wait()
+	c.OptOut = true
 }
 
 // NoopWriter returns a MetricWriter which is opted-out and will not send metrics.
