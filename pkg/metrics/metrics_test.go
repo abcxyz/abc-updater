@@ -381,8 +381,6 @@ func TestWriteMetricAsync(t *testing.T) {
 				defer done()
 			}
 
-			fmt.Printf("\n\nctx: %#v\n\n", ctx)
-
 			err := tc.client.WriteMetricAsync(ctx, "foo", 1)()
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
