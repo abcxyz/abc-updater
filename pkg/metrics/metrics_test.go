@@ -402,10 +402,10 @@ func TestContext(t *testing.T) {
 
 	checkFromContext(context.Background(), t, NoopWriter())
 
-	ctx := WithLogger(context.Background(), client1)
+	ctx := WithClient(context.Background(), client1)
 	checkFromContext(ctx, t, client1)
 
-	ctx = WithLogger(ctx, client2)
+	ctx = WithClient(ctx, client2)
 	checkFromContext(ctx, t, client2)
 }
 
