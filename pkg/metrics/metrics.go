@@ -35,7 +35,7 @@ const (
 	installIDFileName     = "id.json"
 	maxErrorResponseBytes = 2048
 
-	// metricsKey points to the value in the context where the logger is stored.
+	// metricsKey points to the value in the context where the client is stored.
 	metricsKey = contextKey("metricsClient")
 )
 
@@ -267,7 +267,7 @@ func NoopWriter() MetricWriter {
 	return &client{OptOut: true}
 }
 
-// WithClient creates a new context with the provided logger attached.
+// WithClient creates a new context with the provided client attached.
 func WithClient(ctx context.Context, client *client) context.Context {
 	return context.WithValue(ctx, metricsKey, client)
 }
