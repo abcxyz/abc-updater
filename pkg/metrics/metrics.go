@@ -268,7 +268,7 @@ func NoopWriter() MetricWriter {
 }
 
 // WithClient creates a new context with the provided logger attached.
-func WithLogger(ctx context.Context, client *client) context.Context {
+func WithClient(ctx context.Context, client *client) context.Context {
 	return context.WithValue(ctx, metricsKey, client)
 }
 
