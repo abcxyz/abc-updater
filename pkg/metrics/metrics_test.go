@@ -15,16 +15,11 @@
 package metrics
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
-	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -145,6 +140,7 @@ func TestNew(t *testing.T) {
 			})
 		}
 	})
+
 	// Not all failure cases can be easily tested, will test subset that is easy
 	// to reproduce.
 	t.Run("unhappy_path", func(t *testing.T) {
@@ -206,62 +202,15 @@ func TestNew(t *testing.T) {
 func TestWriteMetric(t *testing.T) {
 	t.Parallel()
 
-	// Record calls made to test server. Separate per test using a per-test
-	// unique id in URL.
-	var reqMap sync.Map
-
-	// Request body is intentionally leaked to allow for inspection in test cases.
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		saveReq := r.Clone(context.Background())
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Fatalf("error copying body: %s", err.Error())
-		}
-		saveReq.Body = io.NopCloser(bytes.NewBuffer(body))
-		r.Body = io.NopCloser(bytes.NewBuffer(body))
-		_, prevExist := reqMap.Swap(r.RequestURI, saveReq)
-		if prevExist {
-			t.Fatalf("multiple requests to same url: %s", r.RequestURI)
-		}
-		if !strings.HasSuffix(r.RequestURI, "/sendMetrics") {
-			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
-			return
-		}
-
-		if strings.HasSuffix(r.RequestURI, "400/sendMetrics") {
-			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintln(w, "bad request")
-			return
-		}
-
-		if strings.HasSuffix(r.RequestURI, "500/sendMetrics") {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, "internal error")
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "ok")
-	}))
-
-	t.Cleanup(func() {
-		ts.Close()
-	})
-
 	cases := []struct {
-		name                 string
-		metric               string
-		count                int64
-		client               *client
-		responseCodeOverride int
-		wantRequest          *SendMetricRequest
-		wantErr              string
+		name        string
+		client      *client
+		responder   http.HandlerFunc
+		wantRequest *SendMetricRequest
+		wantErr     string
 	}{
 		{
 			name:   "metric_success",
-			metric: "foo",
-			count:  1,
 			client: defaultClient(),
 			wantRequest: &SendMetricRequest{
 				AppID:      testAppID,
@@ -271,9 +220,7 @@ func TestWriteMetric(t *testing.T) {
 			},
 		},
 		{
-			name:   "metric_opt_out_noop",
-			metric: "foo",
-			count:  1,
+			name: "metric_opt_out_noop",
 			client: func() *client {
 				c := defaultClient()
 				c.OptOut = true
@@ -282,11 +229,12 @@ func TestWriteMetric(t *testing.T) {
 			wantRequest: nil,
 		},
 		{
-			name:                 "metric_4xx_returns_error",
-			metric:               "foo",
-			count:                1,
-			client:               defaultClient(),
-			responseCodeOverride: http.StatusBadRequest,
+			name:   "metric_4xx_returns_error",
+			client: defaultClient(),
+			responder: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprintf(w, "bad request")
+			},
 			wantRequest: &SendMetricRequest{
 				AppID:      testAppID,
 				AppVersion: testVersion,
@@ -296,11 +244,12 @@ func TestWriteMetric(t *testing.T) {
 			wantErr: "received 400 response",
 		},
 		{
-			name:                 "metric_5xx_returns_error",
-			metric:               "foo",
-			count:                1,
-			client:               defaultClient(),
-			responseCodeOverride: http.StatusInternalServerError,
+			name:   "metric_5xx_returns_error",
+			client: defaultClient(),
+			responder: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusInternalServerError)
+				fmt.Fprintf(w, "internal error")
+			},
 			wantRequest: &SendMetricRequest{
 				AppID:      testAppID,
 				AppVersion: testVersion,
@@ -316,39 +265,129 @@ func TestWriteMetric(t *testing.T) {
 			t.Parallel()
 
 			ctx := context.Background()
-			relativePath := fmt.Sprintf("/%d", rand.Uint64()) //nolint:gosec
-			if tc.responseCodeOverride != 0 {
-				relativePath = fmt.Sprintf("%s/%d", relativePath, tc.responseCodeOverride)
-			}
-			tc.client.Config.ServerURL = fmt.Sprintf("%s%s", ts.URL, relativePath)
 
-			err := tc.client.WriteMetric(ctx, tc.metric, tc.count)
+			var gotRequest *SendMetricRequest
+			ts := httptest.NewServer(func() http.Handler {
+				mux := http.NewServeMux()
+				mux.HandleFunc("POST /sendMetrics", func(w http.ResponseWriter, r *http.Request) {
+					if err := json.NewDecoder(r.Body).Decode(&gotRequest); err != nil {
+						t.Errorf("error reading request to test server: %s", err.Error())
+					}
 
+					if tc.responder != nil {
+						tc.responder(w, r)
+						return
+					}
+
+					w.WriteHeader(http.StatusOK)
+					fmt.Fprintln(w, "ok")
+				})
+
+				return mux
+			}())
+			t.Cleanup(ts.Close)
+
+			tc.client.Config.ServerURL = ts.URL
+
+			err := tc.client.WriteMetric(ctx, "foo", 1)
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
 			}
-			val, ok := reqMap.Load(relativePath + "/sendMetrics")
-			if tc.wantRequest != nil {
-				if !ok {
-					t.Errorf("no http request received, expected body of: %v", *tc.wantRequest)
-				}
-				request, ok := val.(*http.Request)
-				if !ok {
-					t.Fatal("Expected *httpRequest in sync map, but cast failed.")
-				}
-				defer request.Body.Close()
 
-				var got SendMetricRequest
-				if err := json.NewDecoder(request.Body).Decode(&got); err != nil {
-					t.Errorf("error reading request to test server: %s", err.Error())
-				}
-				if diff := cmp.Diff(&got, tc.wantRequest); diff != "" {
-					t.Errorf("unexpected request body. Diff (-got +want): %s", diff)
-				}
-			} else {
-				if ok {
-					t.Errorf("did not expect a request but got one")
-				}
+			if diff := cmp.Diff(tc.wantRequest, gotRequest); diff != "" {
+				t.Errorf("unexpected request diff (-got +want): %s", diff)
+			}
+		})
+	}
+}
+
+func TestWriteMetricAsync(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		client      *client
+		timeout     time.Duration
+		wantRequest *SendMetricRequest
+		wantErr     string
+	}{
+		{
+			name:   "metric_success",
+			client: defaultClient(),
+			wantRequest: &SendMetricRequest{
+				AppID:      testAppID,
+				AppVersion: testVersion,
+				Metrics:    map[string]int64{"foo": 1},
+				InstallID:  testInstallID,
+			},
+		},
+		{
+			name:    "metric_success_timeout_set",
+			client:  defaultClient(),
+			timeout: 3 * time.Second,
+			wantRequest: &SendMetricRequest{
+				AppID:      testAppID,
+				AppVersion: testVersion,
+				Metrics:    map[string]int64{"foo": 1},
+				InstallID:  testInstallID,
+			},
+		},
+		{
+			name: "metric_opt_out_noop",
+			client: func() *client {
+				c := defaultClient()
+				c.OptOut = true
+				return c
+			}(),
+			wantRequest: nil,
+		},
+		{
+			name:        "metric_failure_timeout",
+			client:      defaultClient(),
+			timeout:     1 * time.Nanosecond,
+			wantRequest: nil,
+			wantErr:     "context deadline exceeded",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotRequest *SendMetricRequest
+			ts := httptest.NewServer(func() http.Handler {
+				mux := http.NewServeMux()
+				mux.HandleFunc("POST /sendMetrics", func(w http.ResponseWriter, r *http.Request) {
+					// Add artificial latency to ensure our timeouts hit
+					time.Sleep(50 * time.Nanosecond)
+
+					if err := json.NewDecoder(r.Body).Decode(&gotRequest); err != nil {
+						t.Errorf("error reading request to test server: %s", err.Error())
+					}
+
+					w.WriteHeader(http.StatusOK)
+					fmt.Fprintln(w, "ok")
+				})
+				return mux
+			}())
+			t.Cleanup(ts.Close)
+
+			tc.client.Config.ServerURL = ts.URL
+
+			ctx := context.Background()
+			if tc.timeout > 0 {
+				var done func()
+				ctx, done = context.WithTimeout(ctx, tc.timeout)
+				defer done()
+			}
+
+			err := tc.client.WriteMetricAsync(ctx, "foo", 1)()
+			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
+				t.Error(diff)
+			}
+
+			if diff := cmp.Diff(tc.wantRequest, gotRequest); diff != "" {
+				t.Errorf("unexpected request diff (-got +want): %s", diff)
 			}
 		})
 	}

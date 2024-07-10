@@ -17,11 +17,9 @@ package updater
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -34,32 +32,12 @@ import (
 func TestCheckAppVersion(t *testing.T) {
 	t.Parallel()
 
-	testAppResponse := AppResponse{
+	testAppResponse := &AppResponse{
 		AppID:          "sample_app_1",
 		AppName:        "Sample App 1",
 		AppRepoURL:     "https://github.com/abcxyz/sample_app_1",
 		CurrentVersion: "1.0.0",
 	}
-
-	sampleAppResponse, err := json.Marshal(testAppResponse)
-	if err != nil {
-		t.Errorf("failed to encode json %v", err)
-	}
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasSuffix(r.RequestURI, "sample_app_1/data.json") {
-			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprintln(w, http.StatusText(http.StatusNotFound))
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "%s\n", string(sampleAppResponse))
-	}))
-
-	t.Cleanup(func() {
-		ts.Close()
-	})
 
 	cases := []struct {
 		name    string
@@ -74,28 +52,19 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "outdated_version",
 			appID:   "sample_app_1",
 			version: "v0.0.1",
-			env: map[string]string{
-				"UPDATER_URL": ts.URL,
-			},
-			want: `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
+			want:    `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
 		},
 		{
 			name:    "current_version",
 			appID:   "sample_app_1",
 			version: "v1.0.0",
-			env: map[string]string{
-				"UPDATER_URL": ts.URL,
-			},
-			want: "",
+			want:    "",
 		},
 		{
 			name:    "outdated_version_but_cached_check",
 			appID:   "sample_app_1",
 			version: "0.0.1",
-			env: map[string]string{
-				"UPDATER_URL": ts.URL,
-			},
-			want: "",
+			want:    "",
 			cached: &LocalVersionData{
 				LastCheckTimestamp: time.Now().Unix(),
 				AppResponse:        testAppResponse,
@@ -105,10 +74,7 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "outdated_version_cached_check_expired",
 			appID:   "sample_app_1",
 			version: "0.0.1",
-			env: map[string]string{
-				"UPDATER_URL": ts.URL,
-			},
-			want: `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
+			want:    `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
 			cached: &LocalVersionData{
 				LastCheckTimestamp: time.Now().Add(-25 * time.Hour).Unix(),
 				AppResponse:        testAppResponse,
@@ -118,19 +84,13 @@ func TestCheckAppVersion(t *testing.T) {
 			name:    "invalid_app_id",
 			appID:   "bad_app",
 			version: "v1.0.0",
-			env: map[string]string{
-				"UPDATER_URL": ts.URL,
-			},
 			want:    "",
-			wantErr: http.StatusText(http.StatusNotFound),
+			wantErr: "not found",
 		},
 		{
 			name:    "invalid_version",
 			appID:   "sample_app_1",
 			version: "vab1.0.0.12.2",
-			env: map[string]string{
-				"UPDATER_URL": ts.URL,
-			},
 			want:    "",
 			wantErr: "failed to parse check version \"vab1.0.0.12.2\"",
 		},
@@ -139,7 +99,6 @@ func TestCheckAppVersion(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "v0.1.0",
 			env: map[string]string{
-				"UPDATER_URL":        ts.URL,
 				ignoreVersionsEnvVar: "all",
 			},
 			want: "",
@@ -149,7 +108,6 @@ func TestCheckAppVersion(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "v0.1.0",
 			env: map[string]string{
-				"UPDATER_URL":        ts.URL,
 				ignoreVersionsEnvVar: "1.0.0",
 			},
 			want: "",
@@ -159,7 +117,6 @@ func TestCheckAppVersion(t *testing.T) {
 			appID:   "sample_app_1",
 			version: "v0.0.1",
 			env: map[string]string{
-				"UPDATER_URL":        ts.URL,
 				ignoreVersionsEnvVar: "0.0.2",
 			},
 			want: `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
@@ -167,17 +124,28 @@ func TestCheckAppVersion(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
+			ts := httptest.NewServer(func() http.Handler {
+				mux := http.NewServeMux()
+				mux.HandleFunc("GET /sample_app_1/data.json", func(w http.ResponseWriter, r *http.Request) {
+					if err := json.NewEncoder(w).Encode(testAppResponse); err != nil {
+						t.Fatal(err)
+					}
+				})
+				return mux
+			}())
+			t.Cleanup(ts.Close)
 
 			cacheFile := filepath.Join(t.TempDir(), "data.json")
 
 			params := &CheckVersionParams{
-				AppID:             tc.appID,
-				Version:           tc.version,
-				Lookuper:          envconfig.MapLookuper(tc.env),
+				AppID:   tc.appID,
+				Version: tc.version,
+				Lookuper: envconfig.MultiLookuper(
+					envconfig.MapLookuper(map[string]string{"UPDATER_URL": ts.URL}),
+					envconfig.MapLookuper(tc.env)),
 				CacheFileOverride: cacheFile,
 			}
 
@@ -188,6 +156,86 @@ func TestCheckAppVersion(t *testing.T) {
 			}
 
 			output, err := CheckAppVersion(context.Background(), params)
+			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
+				t.Error(diff)
+			}
+
+			if diff := cmp.Diff(output, tc.want); diff != "" {
+				t.Errorf("output was not as expected (-got,+want): %s", diff)
+			}
+		})
+	}
+}
+
+func TestCheckAppVersionAsync(t *testing.T) {
+	t.Parallel()
+
+	testAppResponse := &AppResponse{
+		AppID:          "sample_app_1",
+		AppName:        "Sample App 1",
+		AppRepoURL:     "https://github.com/abcxyz/sample_app_1",
+		CurrentVersion: "1.0.0",
+	}
+
+	cases := []struct {
+		name    string
+		timeout time.Duration
+		want    string
+		wantErr string
+	}{
+		{
+			name: "happy_path_no_error",
+			want: `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
+		},
+		{
+			name:    "happy_path_no_error_provided_timeout",
+			timeout: 4 * time.Second,
+			want:    `Sample App 1 version 1.0.0 is available at [https://github.com/abcxyz/sample_app_1]. Use SAMPLE_APP_1_IGNORE_VERSIONS="1.0.0" (or "all") to ignore.`,
+		},
+		{
+			name:    "time_out_causes_error",
+			timeout: 1 * time.Nanosecond,
+			wantErr: "context deadline exceeded",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ts := httptest.NewServer(func() http.Handler {
+				mux := http.NewServeMux()
+				mux.HandleFunc("GET /sample_app_1/data.json", func(w http.ResponseWriter, r *http.Request) {
+					// Add artificial latency to ensure our timeouts hit
+					time.Sleep(50 * time.Nanosecond)
+
+					if err := json.NewEncoder(w).Encode(testAppResponse); err != nil {
+						t.Fatal(err)
+					}
+				})
+				return mux
+			}())
+			t.Cleanup(ts.Close)
+
+			ctx := context.Background()
+			if tc.timeout > 0 {
+				var done func()
+				ctx, done = context.WithTimeout(ctx, tc.timeout)
+				defer done()
+			}
+
+			cacheFile := filepath.Join(t.TempDir(), "data.json")
+
+			params := &CheckVersionParams{
+				AppID:   "sample_app_1",
+				Version: "0.1.2",
+				Lookuper: envconfig.MapLookuper(map[string]string{
+					"UPDATER_URL": ts.URL,
+				}),
+				CacheFileOverride: cacheFile,
+			}
+
+			output, err := CheckAppVersion(ctx, params)
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
 			}

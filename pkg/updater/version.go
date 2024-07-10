@@ -111,8 +111,9 @@ func (c *versionConfig) isIgnored(checkVersion string) (bool, error) {
 type LocalVersionData struct {
 	// Last time version information was checked, in UTC epoch seconds.
 	LastCheckTimestamp int64 `json:"lastCheckTimestamp"`
+
 	// Currently unused
-	AppResponse
+	AppResponse *AppResponse
 }
 
 // versionUpdateDetails is used for filling outputTemplate.
@@ -207,7 +208,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) (string, e
 
 	_ = setLocalCachedData(params, &LocalVersionData{
 		LastCheckTimestamp: time.Now().Unix(),
-		AppResponse:        result,
+		AppResponse:        &result,
 	})
 
 	ignore, err := c.isIgnored(result.CurrentVersion)
