@@ -272,7 +272,7 @@ func (c *client) WriteMetricAsync(ctx context.Context, name string, count int64)
 	}
 	c.AsyncRunners.Add(1)
 	go func() {
-		if err := c.WriteMetric(ctx, name, count); err != nil {
+		if err := c.WriteMetric(ctx, name, count); err != nil && c.ErrorHandler != nil {
 			c.ErrorHandler(ctx, err)
 		}
 		c.AsyncRunners.Done()
