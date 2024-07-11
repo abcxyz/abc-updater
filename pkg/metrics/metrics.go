@@ -259,6 +259,7 @@ func (c *client) WriteMetric(ctx context.Context, name string, count int64) erro
 	return nil
 }
 
+// TODO: Update Documentation if pattern is kept.
 // WriteMetricAsync is like [WriteMetric], but it sends the metric in the
 // background in a goroutine. The resulting closure can be deferred to ensure
 // the metric finishes writing before process termination. For example:
