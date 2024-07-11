@@ -43,6 +43,14 @@ const (
 // Assert client implements MetricWriter.
 var _ MetricWriter = (*client)(nil)
 
+// noopWriterOnce returns a function that returns the noop client, which
+// is a client with OptOut = true.
+//
+// It is initialized once when called the first time.
+var noopWriterOnce = sync.OnceValue[MetricWriter](func() MetricWriter {
+	return &client{OptOut: true}
+})
+
 // contextKey is a private string type to prevent collisions in the context map.
 type contextKey string
 
@@ -286,9 +294,10 @@ func (c *client) Close() {
 	c.OptOut = true
 }
 
-// NoopWriter returns a MetricWriter which is opted-out and will not send metrics.
+// NoopWriter returns a MetricWriter which is opted-out and will not send
+// metrics.
 func NoopWriter() MetricWriter {
-	return &client{OptOut: true}
+	return noopWriterOnce()
 }
 
 // WithClient creates a new context with the provided client attached.
