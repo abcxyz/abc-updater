@@ -290,6 +290,9 @@ func (c *client) WriteMetricAsync(ctx context.Context, name string, count int64)
 // Close blocks for all async Metrics to finish. Operations after Close()
 // returns will be noops.
 func (c *client) Close() {
+	if c.OptOut {
+		return
+	}
 	c.AsyncRunners.Wait()
 	c.OptOut = true
 }
