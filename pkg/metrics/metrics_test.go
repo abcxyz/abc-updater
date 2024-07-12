@@ -38,12 +38,12 @@ const (
 
 func defaultClient() *client {
 	return &client{
-		AppID:      testAppID,
-		AppVersion: testVersion,
-		InstallID:  testInstallID,
-		HTTPClient: &http.Client{Timeout: 1 * time.Second},
-		OptOut:     false,
-		Config: &metricsConfig{
+		appID:      testAppID,
+		appVersion: testVersion,
+		installID:  testInstallID,
+		httpClient: &http.Client{Timeout: 1 * time.Second},
+		optOut:     false,
+		config: &metricsConfig{
 			ServerURL: testServerURL,
 			NoMetrics: false,
 		},
@@ -76,7 +76,7 @@ func TestNew(t *testing.T) {
 				client:    &http.Client{Timeout: 2},
 				want: func() *client {
 					c := defaultClient()
-					c.HTTPClient = &http.Client{Timeout: 2}
+					c.httpClient = &http.Client{Timeout: 2}
 					return c
 				}(),
 			},
@@ -127,10 +127,10 @@ func TestNew(t *testing.T) {
 					t.Errorf("install id not saved")
 				} else {
 					// We cannot know ahead of time if generated, so copy from got to want.
-					tc.want.InstallID = got.InstallID
+					tc.want.installID = got.installID
 				}
 
-				if diff := cmp.Diff(got.InstallID, storedID.InstallID); diff != "" {
+				if diff := cmp.Diff(got.installID, storedID.InstallID); diff != "" {
 					t.Errorf("install id in client does not match stored. Diff (-client +stored): %s", diff)
 				}
 
@@ -223,7 +223,7 @@ func TestWriteMetric(t *testing.T) {
 			name: "metric_opt_out_noop",
 			client: func() *client {
 				c := defaultClient()
-				c.OptOut = true
+				c.optOut = true
 				return c
 			}(),
 			wantRequest: nil,
@@ -287,7 +287,7 @@ func TestWriteMetric(t *testing.T) {
 			}())
 			t.Cleanup(ts.Close)
 
-			tc.client.Config.ServerURL = ts.URL
+			tc.client.config.ServerURL = ts.URL
 
 			err := tc.client.WriteMetric(ctx, "foo", 1)
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
@@ -336,7 +336,7 @@ func TestWriteMetricAsync(t *testing.T) {
 			name: "metric_opt_out_noop",
 			client: func() *client {
 				c := defaultClient()
-				c.OptOut = true
+				c.optOut = true
 				return c
 			}(),
 			wantRequest: nil,
@@ -372,7 +372,7 @@ func TestWriteMetricAsync(t *testing.T) {
 			}())
 			t.Cleanup(ts.Close)
 
-			tc.client.Config.ServerURL = ts.URL
+			tc.client.config.ServerURL = ts.URL
 
 			ctx := context.Background()
 			if tc.timeout > 0 {
@@ -398,7 +398,7 @@ func TestContext(t *testing.T) {
 
 	client1 := defaultClient()
 	client2 := defaultClient()
-	client2.InstallID = "somethingDifferent"
+	client2.installID = "somethingDifferent"
 
 	checkFromContext(context.Background(), t, NoopWriter())
 

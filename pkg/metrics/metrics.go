@@ -44,11 +44,11 @@ const (
 var _ MetricWriter = (*client)(nil)
 
 // noopWriterOnce returns a function that returns the noop client, which
-// is a client with OptOut = true.
+// is a client with optOut = true.
 //
 // It is initialized once when called the first time.
 var noopWriterOnce = sync.OnceValue[MetricWriter](func() MetricWriter {
-	return &client{OptOut: true}
+	return &client{optOut: true}
 })
 
 // contextKey is a private string type to prevent collisions in the context map.
@@ -100,6 +100,8 @@ func WithInstallIDFileOverride(path string) Option {
 // WithAsyncErrorHandler registers a function to handle any errors occurring
 // during async metric writing. It may be run after the context has
 // timed out, so long-lived blocking operations are discouraged.
+// Can be run concurrently in multiple go routines, all operations must be
+// thread safe.
 func WithAsyncErrorHandler(handler func(ctx context.Context, err error)) Option {
 	return func(o *options) *options {
 		o.errorHandler = handler
@@ -115,14 +117,14 @@ type MetricWriter interface {
 }
 
 type client struct {
-	AppID        string
-	AppVersion   string
-	InstallID    string
-	HTTPClient   *http.Client
-	OptOut       bool
-	Config       *metricsConfig
-	ErrorHandler func(ctx context.Context, err error)
-	AsyncRunners sync.WaitGroup
+	appID        string
+	appVersion   string
+	installID    string
+	httpClient   *http.Client
+	optOut       bool
+	config       *metricsConfig
+	errorHandler func(ctx context.Context, err error)
+	asyncRunners sync.WaitGroup
 }
 
 // New provides a MetricWriter based on provided values and options.
@@ -186,12 +188,12 @@ func New(ctx context.Context, appID, version string, opt ...Option) (MetricWrite
 	}
 
 	return &client{
-		AppID:        appID,
-		AppVersion:   version,
-		InstallID:    installID,
-		HTTPClient:   opts.httpClient,
-		Config:       &c,
-		ErrorHandler: opts.errorHandler,
+		appID:        appID,
+		appVersion:   version,
+		installID:    installID,
+		httpClient:   opts.httpClient,
+		config:       &c,
+		errorHandler: opts.errorHandler,
 	}, nil
 }
 
@@ -214,7 +216,7 @@ type SendMetricRequest struct {
 // completion. It accepts a context for cancellation, or will time out after 5
 // seconds, whatever is sooner. It is a noop if metrics are opted out.
 func (c *client) WriteMetric(ctx context.Context, name string, count int64) error {
-	if c.OptOut {
+	if c.optOut {
 		return nil
 	}
 
@@ -223,15 +225,15 @@ func (c *client) WriteMetric(ctx context.Context, name string, count int64) erro
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(&SendMetricRequest{
-		AppID:      c.AppID,
-		AppVersion: c.AppVersion,
+		AppID:      c.appID,
+		AppVersion: c.appVersion,
 		Metrics:    map[string]int64{name: count},
-		InstallID:  c.InstallID,
+		InstallID:  c.installID,
 	}); err != nil {
 		return fmt.Errorf("failed to marshal metrics as json: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf(c.Config.ServerURL+"/sendMetrics"), &buf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf(c.config.ServerURL+"/sendMetrics"), &buf)
 	if err != nil {
 		return fmt.Errorf("failed to create http request: %w", err)
 	}
@@ -239,7 +241,7 @@ func (c *client) WriteMetric(ctx context.Context, name string, count int64) erro
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := c.HTTPClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to make http request: %w", err)
 	}
@@ -276,26 +278,26 @@ func (c *client) WriteMetric(ctx context.Context, name string, count int64) erro
 //	  }
 //	}()
 func (c *client) WriteMetricAsync(ctx context.Context, name string, count int64) {
-	if c.OptOut {
+	if c.optOut {
 		return
 	}
-	c.AsyncRunners.Add(1)
+	c.asyncRunners.Add(1)
 	go func() {
-		if err := c.WriteMetric(ctx, name, count); err != nil && c.ErrorHandler != nil {
-			c.ErrorHandler(ctx, err)
+		defer c.asyncRunners.Done()
+		if err := c.WriteMetric(ctx, name, count); err != nil && c.errorHandler != nil {
+			c.errorHandler(ctx, err)
 		}
-		c.AsyncRunners.Done()
 	}()
 }
 
 // Close blocks for all async Metrics to finish. Operations after Close()
 // returns will be noops.
 func (c *client) Close() {
-	if c.OptOut {
+	if c.optOut {
 		return
 	}
-	c.AsyncRunners.Wait()
-	c.OptOut = true
+	c.asyncRunners.Wait()
+	c.optOut = true
 }
 
 // NoopWriter returns a MetricWriter which is opted-out and will not send
