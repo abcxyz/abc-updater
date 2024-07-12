@@ -235,33 +235,6 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 	return nil
 }
 
-// WriteMetricAsync is like [WriteMetric], but it sends the metric in the
-// background in a goroutine. The resulting closure can be deferred to ensure
-// the metric finishes writing before process termination. For example:
-//
-//	done := Client.WriteMetricsAsync(ctx, "foo", 1)
-//	defer done()
-//
-// Or with error handling:
-//
-//	done := Client.WriteMetricsAsync(ctx, "foo", 1)
-//	defer func() {
-//	  if err := done(); err != nil {
-//	    // handle error
-//	  }
-//	}()
-func (c *Client) WriteMetricAsync(ctx context.Context, name string, count int64) func() error {
-	errCh := make(chan error, 1)
-	go func() {
-		defer close(errCh)
-		errCh <- c.WriteMetric(ctx, name, count)
-	}()
-
-	return func() error {
-		return <-errCh
-	}
-}
-
 // NoopWriter returns a Client which is opted-out and will not send
 // metrics.
 func NoopWriter() *Client {
