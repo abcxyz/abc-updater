@@ -36,8 +36,8 @@ const (
 	testServerURL = "https://example.com"
 )
 
-func defaultClient() *client {
-	return &client{
+func defaultClient() *Client {
+	return &Client{
 		appID:      testAppID,
 		appVersion: testVersion,
 		installID:  testInstallID,
@@ -59,7 +59,7 @@ func TestNew(t *testing.T) {
 			name      string
 			client    *http.Client
 			installID string
-			want      *client
+			want      *Client
 		}{
 			{
 				name: "happy_path_no_install_id",
@@ -74,7 +74,7 @@ func TestNew(t *testing.T) {
 				name:      "happy_path_with_custom_http_client",
 				installID: testInstallID,
 				client:    &http.Client{Timeout: 2},
-				want: func() *client {
+				want: func() *Client {
 					c := defaultClient()
 					c.httpClient = &http.Client{Timeout: 2}
 					return c
@@ -106,13 +106,9 @@ func TestNew(t *testing.T) {
 					opts = append(opts, WithHTTPClient(tc.client))
 				}
 
-				i, err := New(ctx, testAppID, testVersion, opts...)
+				got, err := New(ctx, testAppID, testVersion, opts...)
 				if err != nil {
 					t.Errorf("unexpected error: %s", err.Error())
-				}
-				got, ok := i.(*client)
-				if !ok {
-					t.Fatal("Expected New to return client, but cast failed.")
 				}
 
 				storedID, err := loadInstallID(testAppID, installPath)
@@ -131,11 +127,11 @@ func TestNew(t *testing.T) {
 				}
 
 				if diff := cmp.Diff(got.installID, storedID.InstallID); diff != "" {
-					t.Errorf("install id in client does not match stored. Diff (-client +stored): %s", diff)
+					t.Errorf("install id in Client does not match stored. Diff (-Client +stored): %s", diff)
 				}
 
-				if diff := cmp.Diff(got, tc.want); diff != "" {
-					t.Errorf("unexpected client fields. Diff (-got +want): %s", diff)
+				if diff := cmp.Diff(got, tc.want, cmp.AllowUnexported(Client{})); diff != "" {
+					t.Errorf("unexpected Client fields. Diff (-got +want): %s", diff)
 				}
 			})
 		}
@@ -146,11 +142,11 @@ func TestNew(t *testing.T) {
 	t.Run("unhappy_path", func(t *testing.T) {
 		t.Parallel()
 
-		cases := []struct { //nolint:forcetypeassert
+		cases := []struct {
 			name      string
 			appID     string
 			env       map[string]string
-			want      *client
+			want      *Client
 			wantError string
 		}{
 			{
@@ -162,7 +158,7 @@ func TestNew(t *testing.T) {
 				name:      "opt_out_env_noop_no_err",
 				appID:     testAppID,
 				env:       map[string]string{"NO_METRICS": "TRUE"},
-				want:      NoopWriter().(*client),
+				want:      NoopWriter(),
 				wantError: "",
 			},
 			{
@@ -178,21 +174,12 @@ func TestNew(t *testing.T) {
 				t.Parallel()
 
 				ctx := context.Background()
-				c, err := New(ctx, tc.appID, "1", WithLookuper(envconfig.MapLookuper(tc.env)))
-				if c == nil && tc.want != nil {
-					t.Errorf("got nil MetricWriter but expected non-nil")
-				}
-				if c != nil {
-					gotV, ok := c.(*client)
-					if !ok {
-						t.Fatal("Expected New to return client, but cast failed.")
-					}
-					if diff := cmp.Diff(gotV, tc.want); diff != "" {
-						t.Errorf("unexpected metricWriter value. Diff (-got +want): %s", diff)
-					}
-				}
+				got, err := New(ctx, tc.appID, "1", WithLookuper(envconfig.MapLookuper(tc.env)))
 				if diff := testutil.DiffErrString(err, tc.wantError); diff != "" {
 					t.Errorf("unexpected error: %s", diff)
+				}
+				if diff := cmp.Diff(got, tc.want, cmp.AllowUnexported(Client{})); diff != "" {
+					t.Errorf("unexpected Client value. Diff (-got +want): %s", diff)
 				}
 			})
 		}
@@ -204,7 +191,7 @@ func TestWriteMetric(t *testing.T) {
 
 	cases := []struct {
 		name        string
-		client      *client
+		client      *Client
 		responder   http.HandlerFunc
 		wantRequest *SendMetricRequest
 		wantErr     string
@@ -221,7 +208,7 @@ func TestWriteMetric(t *testing.T) {
 		},
 		{
 			name: "metric_opt_out_noop",
-			client: func() *client {
+			client: func() *Client {
 				c := defaultClient()
 				c.optOut = true
 				return c
@@ -306,7 +293,7 @@ func TestWriteMetricAsync(t *testing.T) {
 
 	cases := []struct {
 		name        string
-		client      *client
+		client      *Client
 		timeout     time.Duration
 		wantRequest *SendMetricRequest
 		wantErr     string
@@ -334,7 +321,7 @@ func TestWriteMetricAsync(t *testing.T) {
 		},
 		{
 			name: "metric_opt_out_noop",
-			client: func() *client {
+			client: func() *Client {
 				c := defaultClient()
 				c.optOut = true
 				return c
@@ -409,10 +396,10 @@ func TestContext(t *testing.T) {
 	checkFromContext(ctx, t, client2)
 }
 
-func checkFromContext(ctx context.Context, tb testing.TB, want MetricWriter) {
+func checkFromContext(ctx context.Context, tb testing.TB, want *Client) {
 	tb.Helper()
 
-	if diff := cmp.Diff(want, FromContext(ctx)); diff != "" {
-		tb.Errorf("unexpected metrics client in context diff (-got +want): %s", diff)
+	if diff := cmp.Diff(want, FromContext(ctx), cmp.AllowUnexported(Client{})); diff != "" {
+		tb.Errorf("unexpected metrics Client in context diff (-got +want): %s", diff)
 	}
 }

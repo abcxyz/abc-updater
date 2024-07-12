@@ -36,19 +36,16 @@ const (
 	installIDFileName     = "id.json"
 	maxErrorResponseBytes = 2048
 
-	// metricsKey points to the value in the context where the client is stored.
+	// metricsKey points to the value in the context where the Client is stored.
 	metricsKey = contextKey("metricsClient")
 )
 
-// Assert client implements MetricWriter.
-var _ MetricWriter = (*client)(nil)
-
-// noopWriterOnce returns a function that returns the noop client, which
-// is a client with optOut = true.
+// noopWriterOnce returns a function that returns the noop Client, which
+// is a Client with optOut = true.
 //
 // It is initialized once when called the first time.
-var noopWriterOnce = sync.OnceValue[MetricWriter](func() MetricWriter {
-	return &client{optOut: true}
+var noopWriterOnce = sync.OnceValue[*Client](func() *Client {
+	return &Client{optOut: true}
 })
 
 // contextKey is a private string type to prevent collisions in the context map.
@@ -68,10 +65,10 @@ type options struct {
 	installIDFileOverride string
 }
 
-// Option is the MetricWriter option type.
+// Option is the Client option type.
 type Option func(*options) *options
 
-// WithHTTPClient instructs the MetricWriter to use given http.Client when
+// WithHTTPClient instructs the Client to use given http.Client when
 // making calls.
 func WithHTTPClient(client *http.Client) Option {
 	return func(o *options) *options {
@@ -80,7 +77,7 @@ func WithHTTPClient(client *http.Client) Option {
 	}
 }
 
-// WithLookuper instructs the MetricWriter to use given envconfig.Lookuper when
+// WithLookuper instructs the Client to use given envconfig.Lookuper when
 // loading configuration.
 func WithLookuper(lookuper envconfig.Lookuper) Option {
 	return func(o *options) *options {
@@ -109,27 +106,20 @@ func WithAsyncErrorHandler(handler func(ctx context.Context, err error)) Option 
 	}
 }
 
-// MetricWriter is a client for reporting metrics about an application's usage.
-type MetricWriter interface {
-	WriteMetric(ctx context.Context, name string, count int64) error
-	WriteMetricAsync(ctx context.Context, name string, count int64)
-	Close()
-}
-
-type client struct {
-	appID        string
-	appVersion   string
-	installID    string
-	httpClient   *http.Client
-	optOut       bool
-	config       *metricsConfig
+type Client struct {
+	appID      string
+	appVersion string
+	installID  string
+	httpClient *http.Client
+	optOut     bool
+	config     *metricsConfig
 	errorHandler func(ctx context.Context, err error)
 	asyncRunners sync.WaitGroup
 }
 
-// New provides a MetricWriter based on provided values and options.
+// New provides a Client based on provided values and options.
 // Upon error recommended to use NoopWriter().
-func New(ctx context.Context, appID, version string, opt ...Option) (MetricWriter, error) {
+func New(ctx context.Context, appID, version string, opt ...Option) (*Client, error) {
 	if len(appID) == 0 {
 		return nil, fmt.Errorf("appID cannot be empty")
 	}
@@ -187,12 +177,12 @@ func New(ctx context.Context, appID, version string, opt ...Option) (MetricWrite
 		installID = storedID.InstallID
 	}
 
-	return &client{
-		appID:        appID,
-		appVersion:   version,
-		installID:    installID,
-		httpClient:   opts.httpClient,
-		config:       &c,
+	return &Client{
+		appID:      appID,
+		appVersion: version,
+		installID:  installID,
+		httpClient: opts.httpClient,
+		config:     &c,
 		errorHandler: opts.errorHandler,
 	}, nil
 }
@@ -215,7 +205,7 @@ type SendMetricRequest struct {
 // WriteMetric sends information about application usage, blocking until
 // completion. It accepts a context for cancellation, or will time out after 5
 // seconds, whatever is sooner. It is a noop if metrics are opted out.
-func (c *client) WriteMetric(ctx context.Context, name string, count int64) error {
+func (c *Client) WriteMetric(ctx context.Context, name string, count int64) error {
 	if c.optOut {
 		return nil
 	}
@@ -266,18 +256,18 @@ func (c *client) WriteMetric(ctx context.Context, name string, count int64) erro
 // background in a goroutine. The resulting closure can be deferred to ensure
 // the metric finishes writing before process termination. For example:
 //
-//	done := client.WriteMetricsAsync(ctx, "foo", 1)
+//	done := Client.WriteMetricsAsync(ctx, "foo", 1)
 //	defer done()
 //
 // Or with error handling:
 //
-//	done := client.WriteMetricsAsync(ctx, "foo", 1)
+//	done := Client.WriteMetricsAsync(ctx, "foo", 1)
 //	defer func() {
 //	  if err := done(); err != nil {
 //	    // handle error
 //	  }
 //	}()
-func (c *client) WriteMetricAsync(ctx context.Context, name string, count int64) {
+func (c *Client) WriteMetricAsync(ctx context.Context, name string, count int64) {
 	if c.optOut {
 		return
 	}
@@ -292,7 +282,7 @@ func (c *client) WriteMetricAsync(ctx context.Context, name string, count int64)
 
 // Close blocks for all async Metrics to finish. Operations after Close()
 // returns will be noops.
-func (c *client) Close() {
+func (c *Client) Close() {
 	if c.optOut {
 		return
 	}
@@ -300,21 +290,21 @@ func (c *client) Close() {
 	c.optOut = true
 }
 
-// NoopWriter returns a MetricWriter which is opted-out and will not send
+// NoopWriter returns a Client which is opted-out and will not send
 // metrics.
-func NoopWriter() MetricWriter {
+func NoopWriter() *Client {
 	return noopWriterOnce()
 }
 
-// WithClient creates a new context with the provided client attached.
-func WithClient(ctx context.Context, client *client) context.Context {
+// WithClient creates a new context with the provided Client attached.
+func WithClient(ctx context.Context, client *Client) context.Context {
 	return context.WithValue(ctx, metricsKey, client)
 }
 
-// FromContext returns the metrics client stored in the context.
-// If no such client exists, a default noop client is returned.
-func FromContext(ctx context.Context) MetricWriter {
-	if client, ok := ctx.Value(metricsKey).(MetricWriter); ok {
+// FromContext returns the metrics Client stored in the context.
+// If no such Client exists, a default noop Client is returned.
+func FromContext(ctx context.Context) *Client {
+	if client, ok := ctx.Value(metricsKey).(*Client); ok {
 		return client
 	}
 	return NoopWriter()
