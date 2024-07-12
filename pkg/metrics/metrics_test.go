@@ -142,7 +142,7 @@ func TestNew(t *testing.T) {
 	t.Run("unhappy_path", func(t *testing.T) {
 		t.Parallel()
 
-		cases := []struct { //nolint:forcetypeassert
+		cases := []struct {
 			name      string
 			appID     string
 			env       map[string]string
