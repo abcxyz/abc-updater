@@ -107,14 +107,15 @@ func WithAsyncErrorHandler(handler func(ctx context.Context, err error)) Option 
 }
 
 type Client struct {
-	appID      string
-	appVersion string
-	installID  string
-	httpClient *http.Client
-	optOut     bool
-	config     *metricsConfig
+	appID        string
+	appVersion   string
+	installID    string
+	httpClient   *http.Client
+	optOut       bool // hold mut before using
+	config       *metricsConfig
 	errorHandler func(ctx context.Context, err error)
-	asyncRunners sync.WaitGroup
+	asyncRunners sync.WaitGroup // hold mut before using
+	mut          sync.RWMutex
 }
 
 // New provides a Client based on provided values and options.
@@ -178,11 +179,11 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 	}
 
 	return &Client{
-		appID:      appID,
-		appVersion: version,
-		installID:  installID,
-		httpClient: opts.httpClient,
-		config:     &c,
+		appID:        appID,
+		appVersion:   version,
+		installID:    installID,
+		httpClient:   opts.httpClient,
+		config:       &c,
 		errorHandler: opts.errorHandler,
 	}, nil
 }
@@ -206,6 +207,13 @@ type SendMetricRequest struct {
 // completion. It accepts a context for cancellation, or will time out after 5
 // seconds, whatever is sooner. It is a noop if metrics are opted out.
 func (c *Client) WriteMetric(ctx context.Context, name string, count int64) error {
+	if !c.mut.TryRLock() {
+		// Lock is held by close, act as if optOut is true
+		return nil
+	}
+	// No need to adjust wait group, as we don't care for sync, just want to
+	// enforce Close() defensively.
+	defer c.mut.RUnlock()
 	if c.optOut {
 		return nil
 	}
@@ -268,6 +276,11 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 //	  }
 //	}()
 func (c *Client) WriteMetricAsync(ctx context.Context, name string, count int64) {
+	if !c.mut.TryRLock() {
+		// Lock is held by close, act as if optOut is true (will be once close returns).
+		return
+	}
+	defer c.mut.RUnlock()
 	if c.optOut {
 		return
 	}
@@ -283,6 +296,8 @@ func (c *Client) WriteMetricAsync(ctx context.Context, name string, count int64)
 // Close blocks for all async Metrics to finish. Operations after Close()
 // returns will be noops.
 func (c *Client) Close() {
+	c.mut.Lock()
+	defer c.mut.Unlock()
 	if c.optOut {
 		return
 	}
