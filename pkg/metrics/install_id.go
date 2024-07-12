@@ -25,7 +25,7 @@ import (
 
 // InstallIDData defines the json file that defines installation id.
 type InstallIDData struct {
-	// InstallID. Expected to be a hex 8-4-4-4-12 formatted v4 UUID.
+	// InstallID. 8 random bytes base64-encoded.
 	InstallID string `json:"installId"`
 }
 
