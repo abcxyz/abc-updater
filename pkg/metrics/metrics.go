@@ -285,12 +285,13 @@ func (c *Client) WriteMetricAsync(ctx context.Context, name string, count int64)
 		// Lock is held by close, act as if optOut is true (will be once close returns).
 		return
 	}
-	defer c.mut.RUnlock()
 	if c.optOut {
+		c.mut.RUnlock()
 		return
 	}
 	c.asyncRunners.Add(1)
 	go func() {
+		defer c.mut.RUnlock()
 		fmt.Println("async_go_start")
 		defer c.asyncRunners.Done()
 		if err := c.WriteMetric(ctx, name, count); err != nil && c.errorHandler != nil {
