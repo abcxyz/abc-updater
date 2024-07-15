@@ -207,7 +207,9 @@ type SendMetricRequest struct {
 // completion. It accepts a context for cancellation, or will time out after 5
 // seconds, whatever is sooner. It is a noop if metrics are opted out.
 func (c *Client) WriteMetric(ctx context.Context, name string, count int64) error {
+	fmt.Println("WriteMetric start")
 	if !c.mut.TryRLock() {
+		fmt.Println("WriteMetric rlock fail")
 		// Lock is held by close, act as if optOut is true
 		return nil
 	}
@@ -215,6 +217,7 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 	// enforce Close() defensively.
 	defer c.mut.RUnlock()
 	if c.optOut {
+		fmt.Println("WriteMetric optout")
 		return nil
 	}
 
@@ -231,6 +234,7 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 		return fmt.Errorf("failed to marshal metrics as json: %w", err)
 	}
 
+	fmt.Println("WriteMetric request")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf(c.config.ServerURL+"/sendMetrics"), &buf)
 	if err != nil {
 		return fmt.Errorf("failed to create http request: %w", err)
@@ -240,6 +244,7 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(req)
+	fmt.Println("WriteMetric response")
 	if err != nil {
 		return fmt.Errorf("failed to make http request: %w", err)
 	}
