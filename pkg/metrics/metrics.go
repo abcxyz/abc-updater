@@ -281,23 +281,26 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 //	  }
 //	}()
 func (c *Client) WriteMetricAsync(ctx context.Context, name string, count int64) {
+	fmt.Println("Async start")
 	if !c.mut.TryRLock() {
+		fmt.Println("Async rlock fail")
 		// Lock is held by close, act as if optOut is true (will be once close returns).
 		return
 	}
 	if c.optOut {
+		fmt.Println("Async optout")
 		c.mut.RUnlock()
 		return
 	}
 	c.asyncRunners.Add(1)
 	go func() {
 		defer c.mut.RUnlock()
-		fmt.Println("async_go_start")
+		fmt.Println("async go start")
 		defer c.asyncRunners.Done()
 		if err := c.WriteMetric(ctx, name, count); err != nil && c.errorHandler != nil {
 			c.errorHandler(ctx, err)
 		}
-		fmt.Println("async_go_end")
+		fmt.Println("async go end")
 	}()
 }
 
