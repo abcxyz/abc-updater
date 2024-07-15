@@ -114,8 +114,7 @@ type Client struct {
 	optOut       bool // hold mut before using
 	config       *metricsConfig
 	errorHandler func(ctx context.Context, err error)
-	asyncRunners sync.WaitGroup // hold mut before using
-	mut          sync.RWMutex
+	asyncRunners sync.WaitGroup
 }
 
 // New provides a Client based on provided values and options.
@@ -207,17 +206,9 @@ type SendMetricRequest struct {
 // completion. It accepts a context for cancellation, or will time out after 5
 // seconds, whatever is sooner. It is a noop if metrics are opted out.
 func (c *Client) WriteMetric(ctx context.Context, name string, count int64) error {
-	fmt.Println("WriteMetric start")
-	if !c.mut.TryRLock() {
-		fmt.Println("WriteMetric rlock fail")
-		// Lock is held by close, act as if optOut is true
-		return nil
-	}
 	// No need to adjust wait group, as we don't care for sync, just want to
 	// enforce Close() defensively.
-	defer c.mut.RUnlock()
 	if c.optOut {
-		fmt.Println("WriteMetric optout")
 		return nil
 	}
 
@@ -234,7 +225,6 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 		return fmt.Errorf("failed to marshal metrics as json: %w", err)
 	}
 
-	fmt.Println("WriteMetric request")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf(c.config.ServerURL+"/sendMetrics"), &buf)
 	if err != nil {
 		return fmt.Errorf("failed to create http request: %w", err)
@@ -244,7 +234,6 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(req)
-	fmt.Println("WriteMetric response")
 	if err != nil {
 		return fmt.Errorf("failed to make http request: %w", err)
 	}
@@ -281,26 +270,15 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 //	  }
 //	}()
 func (c *Client) WriteMetricAsync(ctx context.Context, name string, count int64) {
-	fmt.Println("Async start")
-	if !c.mut.TryRLock() {
-		fmt.Println("Async rlock fail")
-		// Lock is held by close, act as if optOut is true (will be once close returns).
-		return
-	}
 	if c.optOut {
-		fmt.Println("Async optout")
-		c.mut.RUnlock()
 		return
 	}
 	c.asyncRunners.Add(1)
 	go func() {
-		defer c.mut.RUnlock()
-		fmt.Println("async go start")
 		defer c.asyncRunners.Done()
 		if err := c.WriteMetric(ctx, name, count); err != nil && c.errorHandler != nil {
 			c.errorHandler(ctx, err)
 		}
-		fmt.Println("async go end")
 	}()
 }
 
@@ -331,19 +309,13 @@ func (c *Client) WriteMetricAsyncDefer(ctx context.Context, name string, count i
 	}
 }
 
-// Close blocks for all async Metrics to finish. Operations after Close()
-// returns will be noops.
+// Close blocks for all async Metrics to finish. Behavior of sending metrics
+// after Close() is called is undefined.
 func (c *Client) Close() {
-	fmt.Println("close()")
-	c.mut.Lock()
-	fmt.Println("  lock acquired")
-	defer c.mut.Unlock()
 	if c.optOut {
-		fmt.Printf("  optout")
 		return
 	}
 	c.asyncRunners.Wait()
-	fmt.Println("  done waiting")
 	c.optOut = true
 }
 
