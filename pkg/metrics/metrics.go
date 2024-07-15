@@ -239,6 +239,8 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 	}
 	defer resp.Body.Close()
 
+	fmt.Println("Name", name, "count", count, "code", resp.StatusCode)
+
 	// Future releases may be more strict.
 	if resp.StatusCode >= 300 || resp.StatusCode <= 199 {
 		b, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorResponseBytes))
