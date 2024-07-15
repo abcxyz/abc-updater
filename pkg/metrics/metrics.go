@@ -286,10 +286,12 @@ func (c *Client) WriteMetricAsync(ctx context.Context, name string, count int64)
 	}
 	c.asyncRunners.Add(1)
 	go func() {
+		fmt.Println("async_go_start")
 		defer c.asyncRunners.Done()
 		if err := c.WriteMetric(ctx, name, count); err != nil && c.errorHandler != nil {
 			c.errorHandler(ctx, err)
 		}
+		fmt.Println("async_go_end")
 	}()
 }
 
