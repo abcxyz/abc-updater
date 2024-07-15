@@ -325,16 +325,16 @@ func (c *Client) WriteMetricAsyncDefer(ctx context.Context, name string, count i
 // Close blocks for all async Metrics to finish. Operations after Close()
 // returns will be noops.
 func (c *Client) Close() {
-	fmt.Printf("close()")
+	fmt.Println("close()")
 	c.mut.Lock()
-	fmt.Printf("  lock acquired")
+	fmt.Println("  lock acquired")
 	defer c.mut.Unlock()
 	if c.optOut {
 		fmt.Printf("  optout")
 		return
 	}
 	c.asyncRunners.Wait()
-	fmt.Printf("  done waiting")
+	fmt.Println("  done waiting")
 	c.optOut = true
 }
 
