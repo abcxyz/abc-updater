@@ -210,6 +210,7 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 	// No need to adjust wait group, as we don't care for sync, just want to
 	// enforce Close() defensively.
 	if c.optOut {
+		fmt.Println("optout")
 		return nil
 	}
 
