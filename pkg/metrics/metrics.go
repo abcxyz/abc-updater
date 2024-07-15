@@ -206,6 +206,7 @@ type SendMetricRequest struct {
 // completion. It accepts a context for cancellation, or will time out after 5
 // seconds, whatever is sooner. It is a noop if metrics are opted out.
 func (c *Client) WriteMetric(ctx context.Context, name string, count int64) error {
+	fmt.Println("Name", name, "count", count)
 	// No need to adjust wait group, as we don't care for sync, just want to
 	// enforce Close() defensively.
 	if c.optOut {
