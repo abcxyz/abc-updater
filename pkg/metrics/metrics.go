@@ -57,8 +57,9 @@ type metricsConfig struct {
 }
 
 type options struct {
-	httpClient *http.Client
-	lookuper   envconfig.Lookuper
+	httpClient   *http.Client
+	lookuper     envconfig.Lookuper
+	errorHandler func(ctx context.Context, err error)
 	// Optional override for install id file location. Mostly intended for testing.
 	// If empty uses default location.
 	installIDFileOverride string
@@ -93,13 +94,27 @@ func WithInstallIDFileOverride(path string) Option {
 	}
 }
 
+// WithAsyncErrorHandler registers a function to handle any errors occurring
+// during async metric writing. It may be run after the context has
+// timed out, so long-lived blocking operations are discouraged.
+// Can be run concurrently in multiple go routines, all operations must be
+// thread safe.
+func WithAsyncErrorHandler(handler func(ctx context.Context, err error)) Option {
+	return func(o *options) *options {
+		o.errorHandler = handler
+		return o
+	}
+}
+
 type Client struct {
-	appID      string
-	appVersion string
-	installID  string
-	httpClient *http.Client
-	optOut     bool
-	config     *metricsConfig
+	appID        string
+	appVersion   string
+	installID    string
+	httpClient   *http.Client
+	optOut       bool // hold mut before using
+	config       *metricsConfig
+	errorHandler func(ctx context.Context, err error)
+	asyncRunners sync.WaitGroup
 }
 
 // New provides a Client based on provided values and options.
@@ -163,11 +178,12 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 	}
 
 	return &Client{
-		appID:      appID,
-		appVersion: version,
-		installID:  installID,
-		httpClient: opts.httpClient,
-		config:     &c,
+		appID:        appID,
+		appVersion:   version,
+		installID:    installID,
+		httpClient:   opts.httpClient,
+		config:       &c,
+		errorHandler: opts.errorHandler,
 	}, nil
 }
 
@@ -190,6 +206,8 @@ type SendMetricRequest struct {
 // completion. It accepts a context for cancellation, or will time out after 5
 // seconds, whatever is sooner. It is a noop if metrics are opted out.
 func (c *Client) WriteMetric(ctx context.Context, name string, count int64) error {
+	// No need to adjust wait group, as we don't care for sync, just want to
+	// enforce Close() defensively.
 	if c.optOut {
 		return nil
 	}
@@ -235,6 +253,7 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 	return nil
 }
 
+// TODO: Update Documentation if pattern is kept.
 // WriteMetricAsync is like [WriteMetric], but it sends the metric in the
 // background in a goroutine. The resulting closure can be deferred to ensure
 // the metric finishes writing before process termination. For example:
@@ -250,16 +269,27 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 //	    // handle error
 //	  }
 //	}()
-func (c *Client) WriteMetricAsync(ctx context.Context, name string, count int64) func() error {
-	errCh := make(chan error, 1)
-	go func() {
-		defer close(errCh)
-		errCh <- c.WriteMetric(ctx, name, count)
-	}()
-
-	return func() error {
-		return <-errCh
+func (c *Client) WriteMetricAsync(ctx context.Context, name string, count int64) {
+	if c.optOut {
+		return
 	}
+	c.asyncRunners.Add(1)
+	go func() {
+		defer c.asyncRunners.Done()
+		if err := c.WriteMetric(ctx, name, count); err != nil && c.errorHandler != nil {
+			c.errorHandler(ctx, err)
+		}
+	}()
+}
+
+// Close blocks for all async Metrics to finish. Behavior of sending metrics
+// after Close() is called is undefined.
+func (c *Client) Close() {
+	if c.optOut {
+		return
+	}
+	c.asyncRunners.Wait()
+	c.optOut = true
 }
 
 // NoopWriter returns a Client which is opted-out and will not send

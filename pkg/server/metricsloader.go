@@ -123,8 +123,8 @@ func diffApps(ctx context.Context, oldDefs, newDefs map[string]*AppMetrics) {
 	}
 }
 
-// GetAllowedMetrics returns a struct containing metrics for a given AppID.
-// An error is returned if that AppID is not defined in the backend for metrics.
+// GetAllowedMetrics returns a struct containing metrics for a given appID.
+// An error is returned if that appID is not defined in the backend for metrics.
 func (db *MetricsDB) GetAllowedMetrics(appID string) (*AppMetrics, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
