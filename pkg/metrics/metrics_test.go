@@ -288,6 +288,35 @@ func TestWriteMetric(t *testing.T) {
 	}
 }
 
+// ExampleWriteMetric shows how to call WriteMetric in an async matter.
+func ExampleWriteMetric() {
+	ctx := context.Background()
+	client, err := New(ctx, "appID", "1.0")
+	if err != nil {
+		// handle err
+	}
+
+	// You can define an async wrapper that runs in a goroutine and provides a function
+	// that blocks on result.
+	writeMetricAsync := func(ctx context.Context, client *Client, name string, count int64) func() {
+		errCh := make(chan error, 1)
+		go func() {
+			defer close(errCh)
+			errCh <- client.WriteMetric(ctx, name, count)
+		}()
+
+		return func() {
+			err := <-errCh
+			if err != nil {
+				// Handle err
+			}
+		}
+	}
+
+	resolver := writeMetricAsync(ctx, client, "metric_foo", 1)
+	defer resolver()
+}
+
 func TestContext(t *testing.T) {
 	t.Parallel()
 
