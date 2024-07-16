@@ -288,96 +288,33 @@ func TestWriteMetric(t *testing.T) {
 	}
 }
 
-func TestWriteMetricAsync(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name        string
-		client      *Client
-		timeout     time.Duration
-		wantRequest *SendMetricRequest
-		wantErr     string
-	}{
-		{
-			name:   "metric_success",
-			client: defaultClient(),
-			wantRequest: &SendMetricRequest{
-				AppID:      testAppID,
-				AppVersion: testVersion,
-				Metrics:    map[string]int64{"foo": 1},
-				InstallID:  testInstallID,
-			},
-		},
-		{
-			name:    "metric_success_timeout_set",
-			client:  defaultClient(),
-			timeout: 3 * time.Second,
-			wantRequest: &SendMetricRequest{
-				AppID:      testAppID,
-				AppVersion: testVersion,
-				Metrics:    map[string]int64{"foo": 1},
-				InstallID:  testInstallID,
-			},
-		},
-		{
-			name: "metric_opt_out_noop",
-			client: func() *Client {
-				c := defaultClient()
-				c.optOut = true
-				return c
-			}(),
-			wantRequest: nil,
-		},
-		{
-			name:        "metric_failure_timeout",
-			client:      defaultClient(),
-			timeout:     1 * time.Nanosecond,
-			wantRequest: nil,
-			wantErr:     "context deadline exceeded",
-		},
+// ExampleWriteMetric shows how to call WriteMetric in an async matter.
+func ExampleClient_WriteMetric() {
+	ctx := context.Background()
+	client, err := New(ctx, "appID", "1.0")
+	if err != nil {
+		// handle err
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	// You can define an async wrapper that runs in a goroutine and provides a function
+	// that blocks on result.
+	writeMetricAsync := func(ctx context.Context, client *Client, name string, count int64) func() {
+		errCh := make(chan error, 1)
+		go func() {
+			defer close(errCh)
+			errCh <- client.WriteMetric(ctx, name, count)
+		}()
 
-			var gotRequest *SendMetricRequest
-			ts := httptest.NewServer(func() http.Handler {
-				mux := http.NewServeMux()
-				mux.HandleFunc("POST /sendMetrics", func(w http.ResponseWriter, r *http.Request) {
-					// Add artificial latency to ensure our timeouts hit
-					time.Sleep(50 * time.Nanosecond)
-
-					if err := json.NewDecoder(r.Body).Decode(&gotRequest); err != nil {
-						t.Errorf("error reading request to test server: %s", err.Error())
-					}
-
-					w.WriteHeader(http.StatusOK)
-					fmt.Fprintln(w, "ok")
-				})
-				return mux
-			}())
-			t.Cleanup(ts.Close)
-
-			tc.client.config.ServerURL = ts.URL
-
-			ctx := context.Background()
-			if tc.timeout > 0 {
-				var done func()
-				ctx, done = context.WithTimeout(ctx, tc.timeout)
-				defer done()
+		return func() {
+			err := <-errCh
+			if err != nil {
+				// Handle err
 			}
-
-			err := tc.client.WriteMetricAsync(ctx, "foo", 1)()
-			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
-				t.Error(diff)
-			}
-
-			if diff := cmp.Diff(tc.wantRequest, gotRequest); diff != "" {
-				t.Errorf("unexpected request diff (-got +want): %s", diff)
-			}
-		})
+		}
 	}
+
+	resolver := writeMetricAsync(ctx, client, "metric_foo", 1)
+	defer resolver()
 }
 
 func TestContext(t *testing.T) {
