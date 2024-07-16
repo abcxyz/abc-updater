@@ -114,8 +114,7 @@ type Client struct {
 	optOut       bool // hold mut before using
 	config       *metricsConfig
 	errorHandler func(ctx context.Context, err error)
-	asyncRunners sync.WaitGroup // hold mut before using
-	mut          sync.RWMutex
+	asyncRunners sync.WaitGroup
 }
 
 // New provides a Client based on provided values and options.
@@ -207,13 +206,8 @@ type SendMetricRequest struct {
 // completion. It accepts a context for cancellation, or will time out after 5
 // seconds, whatever is sooner. It is a noop if metrics are opted out.
 func (c *Client) WriteMetric(ctx context.Context, name string, count int64) error {
-	if !c.mut.TryRLock() {
-		// Lock is held by close, act as if optOut is true
-		return nil
-	}
 	// No need to adjust wait group, as we don't care for sync, just want to
 	// enforce Close() defensively.
-	defer c.mut.RUnlock()
 	if c.optOut {
 		return nil
 	}
@@ -276,11 +270,6 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 //	  }
 //	}()
 func (c *Client) WriteMetricAsync(ctx context.Context, name string, count int64) {
-	if !c.mut.TryRLock() {
-		// Lock is held by close, act as if optOut is true (will be once close returns).
-		return
-	}
-	defer c.mut.RUnlock()
 	if c.optOut {
 		return
 	}
@@ -293,11 +282,9 @@ func (c *Client) WriteMetricAsync(ctx context.Context, name string, count int64)
 	}()
 }
 
-// Close blocks for all async Metrics to finish. Operations after Close()
-// returns will be noops.
+// Close blocks for all async Metrics to finish. Behavior of sending metrics
+// after Close() is called is undefined.
 func (c *Client) Close() {
-	c.mut.Lock()
-	defer c.mut.Unlock()
 	if c.optOut {
 		return
 	}
