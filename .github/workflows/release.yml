@@ -162,7 +162,7 @@ jobs:
         gh release edit "${RELEASE_VERSION}" \
           --repo "${REPO}" \
           --draft=false
-    - id: 'gcp-auth'
+    - id: 'auth'
       name: 'Authenticate to Google Cloud'
       uses: 'google-github-actions/auth@55bd3a7c6e2ae7cf1877fd1ccb9d54c0503c457c' # ratchet:google-github-actions/auth@v2
       with:
