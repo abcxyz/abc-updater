@@ -206,11 +206,9 @@ type SendMetricRequest struct {
 // completion. It accepts a context for cancellation, or will time out after 5
 // seconds, whatever is sooner. It is a noop if metrics are opted out.
 func (c *Client) WriteMetric(ctx context.Context, name string, count int64) error {
-	fmt.Println("Name", name, "count", count)
 	// No need to adjust wait group, as we don't care for sync, just want to
 	// enforce Close() defensively.
 	if c.optOut {
-		fmt.Println("optout")
 		return nil
 	}
 
@@ -240,8 +238,6 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 		return fmt.Errorf("failed to make http request: %w", err)
 	}
 	defer resp.Body.Close()
-
-	fmt.Println("Name", name, "count", count, "code", resp.StatusCode)
 
 	// Future releases may be more strict.
 	if resp.StatusCode >= 300 || resp.StatusCode <= 199 {
