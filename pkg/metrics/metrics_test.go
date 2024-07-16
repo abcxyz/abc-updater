@@ -289,7 +289,7 @@ func TestWriteMetric(t *testing.T) {
 }
 
 // ExampleWriteMetric shows how to call WriteMetric in an async matter.
-func ExampleWriteMetric() {
+func ExampleClient_WriteMetric() {
 	ctx := context.Background()
 	client, err := New(ctx, "appID", "1.0")
 	if err != nil {
