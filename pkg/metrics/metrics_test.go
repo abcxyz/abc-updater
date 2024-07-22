@@ -95,7 +95,7 @@ func TestNew(t *testing.T) {
 						t.Fatalf("test setup failed: %s", err.Error())
 					}
 				}
-				installTimeLowerBound := time.Now().UTC().Truncate(time.Minute)
+				installTimeLowerBound := time.Now().UTC().Truncate(installTimeResolution)
 				envVars := map[string]string{
 					"METRICS_URL": testServerURL,
 				}
@@ -121,7 +121,7 @@ func TestNew(t *testing.T) {
 					if diff := cmp.Diff(storedTime.InstallTime, *tc.installTime); diff != "" {
 						t.Errorf("install time changed. Diff (-got +want): %s", diff)
 					}
-				} else if storedTime.InstallTime.Before(installTimeLowerBound) || storedTime.InstallTime.After(time.Now().UTC().Truncate(time.Minute)) {
+				} else if storedTime.InstallTime.Before(installTimeLowerBound) || storedTime.InstallTime.After(time.Now().UTC().Truncate(installTimeResolution)) {
 					t.Errorf("generated install time invalid")
 				} else {
 					// We cannot know ahead of time if generated, so copy from got to want.
