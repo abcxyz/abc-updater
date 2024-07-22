@@ -32,17 +32,18 @@ import (
 const (
 	testAppID     = "asdf"
 	testVersion   = "1.0.0"
-	testInstallID = "yv66vt6tvu8="
 	testServerURL = "https://example.com"
 )
 
+var testInstallTime = time.Date(2024, 7, 3, 2, 8, 0, 0, time.UTC)
+
 func defaultClient() *Client {
 	return &Client{
-		appID:      testAppID,
-		appVersion: testVersion,
-		installID:  testInstallID,
-		httpClient: &http.Client{Timeout: 1 * time.Second},
-		optOut:     false,
+		appID:       testAppID,
+		appVersion:  testVersion,
+		installTime: testInstallTime,
+		httpClient:  &http.Client{Timeout: 1 * time.Second},
+		optOut:      false,
 		config: &metricsConfig{
 			ServerURL: testServerURL,
 			NoMetrics: false,
@@ -56,24 +57,24 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		cases := []struct {
-			name      string
-			client    *http.Client
-			installID string
-			want      *Client
+			name        string
+			client      *http.Client
+			installTime *time.Time
+			want        *Client
 		}{
 			{
-				name: "happy_path_no_install_id",
+				name: "happy_path_no_install_time",
 				want: defaultClient(),
 			},
 			{
-				name:      "happy_path_with_install_id",
-				installID: testInstallID,
-				want:      defaultClient(),
+				name:        "happy_path_with_install_time",
+				installTime: &testInstallTime,
+				want:        defaultClient(),
 			},
 			{
-				name:      "happy_path_with_custom_http_client",
-				installID: testInstallID,
-				client:    &http.Client{Timeout: 2},
+				name:        "happy_path_with_custom_http_client",
+				installTime: &testInstallTime,
+				client:      &http.Client{Timeout: 2},
 				want: func() *Client {
 					c := defaultClient()
 					c.httpClient = &http.Client{Timeout: 2}
@@ -88,19 +89,20 @@ func TestNew(t *testing.T) {
 
 				ctx := context.Background()
 
-				installPath := t.TempDir() + "/" + installIDFileName
-				if tc.installID != "" {
-					if err := storeInstallID(testAppID, installPath, &InstallIDData{tc.installID}); err != nil {
+				installPath := t.TempDir() + "/" + installTimeFileName
+				if tc.installTime != nil {
+					if err := storeInstallTime(testAppID, installPath, &InstallTimeData{*tc.installTime}); err != nil {
 						t.Fatalf("test setup failed: %s", err.Error())
 					}
 				}
+				installTimeLowerBound := time.Now().UTC().Truncate(time.Minute)
 				envVars := map[string]string{
 					"METRICS_URL": testServerURL,
 				}
 				lookuper := envconfig.MapLookuper(envVars)
 				opts := []Option{
 					WithLookuper(lookuper),
-					WithInstallIDFileOverride(installPath),
+					WithInstallTimeFileOverride(installPath),
 				}
 				if tc.client != nil {
 					opts = append(opts, WithHTTPClient(tc.client))
@@ -111,23 +113,23 @@ func TestNew(t *testing.T) {
 					t.Errorf("unexpected error: %s", err.Error())
 				}
 
-				storedID, err := loadInstallID(testAppID, installPath)
+				storedTime, err := loadInstallTime(testAppID, installPath)
 				if err != nil {
-					t.Fatalf("could not load install ID for checking side effects")
+					t.Fatalf("could not load install time for checking side effects")
 				}
-				if len(tc.installID) > 0 {
-					if diff := cmp.Diff(storedID.InstallID, tc.installID); diff != "" {
-						t.Errorf("install id changed. Diff (-got +want): %s", diff)
+				if tc.installTime != nil {
+					if diff := cmp.Diff(storedTime.InstallTime, *tc.installTime); diff != "" {
+						t.Errorf("install time changed. Diff (-got +want): %s", diff)
 					}
-				} else if storedID.InstallID == "" {
-					t.Errorf("install id not saved")
+				} else if storedTime.InstallTime.Before(installTimeLowerBound) || storedTime.InstallTime.After(time.Now().UTC().Truncate(time.Minute)) {
+					t.Errorf("generated install time invalid")
 				} else {
 					// We cannot know ahead of time if generated, so copy from got to want.
-					tc.want.installID = got.installID
+					tc.want.installTime = got.installTime
 				}
 
-				if diff := cmp.Diff(got.installID, storedID.InstallID); diff != "" {
-					t.Errorf("install id in Client does not match stored. Diff (-Client +stored): %s", diff)
+				if diff := cmp.Diff(got.installTime, storedTime.InstallTime); diff != "" {
+					t.Errorf("install time in Client does not match stored. Diff (-Client +stored): %s", diff)
 				}
 
 				if diff := cmp.Diff(got, tc.want, cmp.AllowUnexported(Client{})); diff != "" {
@@ -200,10 +202,10 @@ func TestWriteMetric(t *testing.T) {
 			name:   "metric_success",
 			client: defaultClient(),
 			wantRequest: &SendMetricRequest{
-				AppID:      testAppID,
-				AppVersion: testVersion,
-				Metrics:    map[string]int64{"foo": 1},
-				InstallID:  testInstallID,
+				AppID:       testAppID,
+				AppVersion:  testVersion,
+				Metrics:     map[string]int64{"foo": 1},
+				InstallTime: testInstallTime,
 			},
 		},
 		{
@@ -223,10 +225,10 @@ func TestWriteMetric(t *testing.T) {
 				fmt.Fprintf(w, "bad request")
 			},
 			wantRequest: &SendMetricRequest{
-				AppID:      testAppID,
-				AppVersion: testVersion,
-				Metrics:    map[string]int64{"foo": 1},
-				InstallID:  testInstallID,
+				AppID:       testAppID,
+				AppVersion:  testVersion,
+				Metrics:     map[string]int64{"foo": 1},
+				InstallTime: testInstallTime,
 			},
 			wantErr: "received 400 response",
 		},
@@ -238,10 +240,10 @@ func TestWriteMetric(t *testing.T) {
 				fmt.Fprintf(w, "internal error")
 			},
 			wantRequest: &SendMetricRequest{
-				AppID:      testAppID,
-				AppVersion: testVersion,
-				Metrics:    map[string]int64{"foo": 1},
-				InstallID:  testInstallID,
+				AppID:       testAppID,
+				AppVersion:  testVersion,
+				Metrics:     map[string]int64{"foo": 1},
+				InstallTime: testInstallTime,
 			},
 			wantErr: "received 500 response",
 		},
@@ -322,7 +324,7 @@ func TestContext(t *testing.T) {
 
 	client1 := defaultClient()
 	client2 := defaultClient()
-	client2.installID = "somethingDifferent"
+	client2.installTime = time.Date(2018, 3, 4, 5, 6, 0, 0, time.UTC)
 
 	checkFromContext(context.Background(), t, NoopWriter())
 
