@@ -16,16 +16,14 @@ package metrics
 
 import (
 	"fmt"
-	"path/filepath"
-	"time"
-
 	"github.com/abcxyz/abc-updater/pkg/localstore"
+	"path/filepath"
 )
 
 // installInfo defines the json file that defines installation time.
 type installInfo struct {
 	// InstallTime. Minute-precision time of installation in UTC.
-	InstallTime time.Time `json:"installTime"`
+	InstallTime string `json:"installTime"`
 }
 
 func loadInstallTime(appID, installTimeFileOverride string) (*installInfo, error) {
@@ -43,10 +41,7 @@ func loadInstallTime(appID, installTimeFileOverride string) (*installInfo, error
 		return nil, fmt.Errorf("could not load install time: %w", err)
 	}
 
-	// Defensive. Should be stored truncated.
-	stored.InstallTime = stored.InstallTime.UTC().Truncate(installTimeResolution)
-
-	if stored.InstallTime.IsZero() {
+	if stored.InstallTime == "" {
 		return nil, fmt.Errorf("invalid zero value for install time")
 	}
 

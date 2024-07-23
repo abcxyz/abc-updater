@@ -27,7 +27,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/sethvargo/go-envconfig"
 
 	"github.com/abcxyz/pkg/logging"
@@ -65,7 +64,7 @@ type options struct {
 	// testing. If empty uses default location.
 	installInfoFileOverride string
 	// Optional override for time for testing.
-	clock clock.Clock
+	nowFn func() time.Time
 }
 
 // Option is the Client option type.
@@ -97,10 +96,10 @@ func WithInstallInfoFileOverride(path string) Option {
 	}
 }
 
-// withClock overrides the clock for testing purposes.
-func withClock(clock clock.Clock) Option {
+// withNowOverride overrides the current time for testing purposes.
+func withNowOverride(nowFn func() time.Time) Option {
 	return func(o *options) *options {
-		o.clock = clock
+		o.nowFn = nowFn
 		return o
 	}
 }
@@ -108,7 +107,7 @@ func withClock(clock clock.Clock) Option {
 type Client struct {
 	appID       string
 	appVersion  string
-	installTime time.Time
+	installTime string
 	httpClient  *http.Client
 	optOut      bool
 	config      *metricsConfig
@@ -158,16 +157,21 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 	}
 
 	storedTime, err := loadInstallTime(appID, opts.installInfoFileOverride)
-	var installTime time.Time
+	var installTime string
 
 	if err != nil {
-		var clockImpl clock.Clock
-		if opts.clock != nil {
-			clockImpl = opts.clock
+		var now time.Time
+		if opts.nowFn != nil {
+			now = opts.nowFn()
 		} else {
-			clockImpl = clock.New() // Normal realtime clock.
+			now = time.Now()
 		}
-		installTime = clockImpl.Now().UTC().Truncate(installTimeResolution)
+		if installTimeBuf, err := now.UTC().Truncate(installTimeResolution).MarshalText(); err != nil {
+			return nil, fmt.Errorf("time.Now() could not be converted to RFC3339, check system clock: %w", err)
+		} else {
+			installTime = string(installTimeBuf)
+		}
+
 		if err = storeInstallTime(appID, opts.installInfoFileOverride, &installInfo{
 			InstallTime: installTime,
 		}); err != nil {
@@ -198,7 +202,7 @@ type SendMetricRequest struct {
 	Metrics map[string]int64 `json:"metrics"`
 
 	// InstallTime. Time of install in UTC. String in rfc3339 format.
-	InstallTime time.Time `json:"installTime"`
+	InstallTime string `json:"installTime"`
 }
 
 // WriteMetric sends information about application usage, blocking until

@@ -37,7 +37,15 @@ import (
 // Assert testMetricsDB satisfies pkg.MetricsLookuper.
 var _ MetricsLookuper = (*testMetricsDB)(nil)
 
-var testInstallTime = time.Date(2024, 7, 3, 2, 8, 0, 0, time.UTC)
+var testInstallTime = mustMarshal(time.Date(2024, 7, 3, 2, 8, 0, 0, time.UTC))
+
+func mustMarshal(in time.Time) string {
+	buf, err := in.MarshalText()
+	if err != nil {
+		panic(fmt.Errorf("couldn't marshal time: %w", err))
+	}
+	return string(buf)
+}
 
 type testMetricsDB struct {
 	apps map[string]*AppMetrics
