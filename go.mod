@@ -6,6 +6,7 @@ toolchain go1.22.1
 
 require (
 	github.com/abcxyz/pkg v1.0.4
+	github.com/benbjohnson/clock v1.3.5
 	github.com/google/go-cmp v0.6.0
 	github.com/google/renameio v1.0.1
 	github.com/hashicorp/go-version v1.6.0

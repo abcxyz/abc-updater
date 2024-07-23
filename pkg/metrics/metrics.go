@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/benbjohnson/clock"
 	"io"
 	"net/http"
 	"net/url"
@@ -62,9 +63,9 @@ type options struct {
 	lookuper   envconfig.Lookuper
 	// Optional override for install time file location. Mostly intended for
 	// testing. If empty uses default location.
-	installTimeFileOverride string
-	// Optional override for time.Now() for testing.
-	now func() time.Time
+	installInfoFileOverride string
+	// Optional override for time for testing.
+	clock clock.Clock
 }
 
 // Option is the Client option type.
@@ -88,18 +89,18 @@ func WithLookuper(lookuper envconfig.Lookuper) Option {
 	}
 }
 
-// WithInstallTimeFileOverride overrides the path where install time file is stored.
-func WithInstallTimeFileOverride(path string) Option {
+// WithInstallInfoFileOverride overrides the path where install time file is stored.
+func WithInstallInfoFileOverride(path string) Option {
 	return func(o *options) *options {
-		o.installTimeFileOverride = path
+		o.installInfoFileOverride = path
 		return o
 	}
 }
 
-// withNowOverride overrides the current time for testing purposes.
-func withNowOverride(now func() time.Time) Option {
+// withClock overrides the clock for testing purposes.
+func withClock(clock clock.Clock) Option {
 	return func(o *options) *options {
-		o.now = now
+		o.clock = clock
 		return o
 	}
 }
@@ -156,16 +157,18 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 		return nil, fmt.Errorf("failed to parse server URL: %w", err)
 	}
 
-	storedTime, err := loadInstallTime(appID, opts.installTimeFileOverride)
+	storedTime, err := loadInstallTime(appID, opts.installInfoFileOverride)
 	var installTime time.Time
 
 	if err != nil {
-		nowFn := opts.now
-		if nowFn == nil {
-			nowFn = time.Now
+		var clockImpl clock.Clock
+		if opts.clock != nil {
+			clockImpl = opts.clock
+		} else {
+			clockImpl = clock.New() // Normal realtime clock.
 		}
-		installTime = nowFn().UTC().Truncate(installTimeResolution)
-		if err = storeInstallTime(appID, opts.installTimeFileOverride, &InstallInfo{
+		installTime = clockImpl.Now().UTC().Truncate(installTimeResolution)
+		if err = storeInstallTime(appID, opts.installInfoFileOverride, &installInfo{
 			InstallTime: installTime,
 		}); err != nil {
 			logging.FromContext(ctx).DebugContext(ctx, "error storing InstallTime", "error", err.Error())

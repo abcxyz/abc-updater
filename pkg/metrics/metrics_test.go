@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/benbjohnson/clock"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -36,7 +37,8 @@ const (
 )
 
 var (
-	testNowTime     = time.Date(2024, 1, 2, 3, 4, 5, 6, time.UTC)
+	testNowTime = time.Date(2024, 1, 2, 3, 4, 5, 6, time.UTC)
+
 	testInstallTime = time.Date(2024, 5, 4, 3, 2, 0, 0, time.UTC)
 )
 
@@ -94,7 +96,7 @@ func TestNew(t *testing.T) {
 
 				installPath := t.TempDir() + "/" + installTimeFileName
 				if tc.installTime != nil {
-					if err := storeInstallTime(testAppID, installPath, &InstallInfo{*tc.installTime}); err != nil {
+					if err := storeInstallTime(testAppID, installPath, &installInfo{*tc.installTime}); err != nil {
 						t.Fatalf("test setup failed: %s", err.Error())
 					}
 				}
@@ -104,10 +106,12 @@ func TestNew(t *testing.T) {
 				lookuper := envconfig.MapLookuper(envVars)
 				opts := []Option{
 					WithLookuper(lookuper),
-					WithInstallTimeFileOverride(installPath),
-					withNowOverride(func() time.Time {
-						return testNowTime
-					}),
+					WithInstallInfoFileOverride(installPath),
+					withClock(func() clock.Clock {
+						ret := clock.NewMock()
+						ret.Set(testNowTime)
+						return ret
+					}()),
 				}
 				if tc.client != nil {
 					opts = append(opts, WithHTTPClient(tc.client))
