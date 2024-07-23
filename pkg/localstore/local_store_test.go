@@ -66,6 +66,12 @@ func TestLoadJSONFile(t *testing.T) {
 			want: testObj{},
 		},
 		{
+			name: "null_json",
+			path: "data.json",
+			fs:   map[string]string{"data.json": "null"},
+			want: testObj{},
+		},
+		{
 			name:      "file_missing",
 			path:      "data.json",
 			fs:        map[string]string{},

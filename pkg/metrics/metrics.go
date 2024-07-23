@@ -34,7 +34,7 @@ import (
 
 const (
 	installTimeFileName   = "id.json"
-	installTimeResolution = time.Minute // TODO: decide resolution
+	installTimeResolution = time.Minute // Internal Use: Consult PWG before shortening.
 	maxErrorResponseBytes = 2048
 
 	// metricsKey points to the value in the context where the Client is stored.
@@ -63,6 +63,8 @@ type options struct {
 	// Optional override for install time file location. Mostly intended for
 	// testing. If empty uses default location.
 	installTimeFileOverride string
+	// Optional override for time.Now() for testing.
+	now func() time.Time
 }
 
 // Option is the Client option type.
@@ -90,6 +92,14 @@ func WithLookuper(lookuper envconfig.Lookuper) Option {
 func WithInstallTimeFileOverride(path string) Option {
 	return func(o *options) *options {
 		o.installTimeFileOverride = path
+		return o
+	}
+}
+
+// withNowOverride overrides the current time for testing purposes.
+func withNowOverride(now func() time.Time) Option {
+	return func(o *options) *options {
+		o.now = now
 		return o
 	}
 }
@@ -148,10 +158,14 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 
 	storedTime, err := loadInstallTime(appID, opts.installTimeFileOverride)
 	var installTime time.Time
-	if err != nil || storedTime == nil {
-		installTime = time.Now().UTC().Truncate(installTimeResolution)
 
-		if err = storeInstallTime(appID, opts.installTimeFileOverride, &InstallTimeData{
+	if err != nil {
+		nowFn := opts.now
+		if nowFn == nil {
+			nowFn = time.Now
+		}
+		installTime = nowFn().UTC().Truncate(installTimeResolution)
+		if err = storeInstallTime(appID, opts.installTimeFileOverride, &InstallInfo{
 			InstallTime: installTime,
 		}); err != nil {
 			logging.FromContext(ctx).DebugContext(ctx, "error storing InstallTime", "error", err.Error())

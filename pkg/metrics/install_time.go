@@ -22,13 +22,13 @@ import (
 	"github.com/abcxyz/abc-updater/pkg/localstore"
 )
 
-// InstallTimeData defines the json file that defines installation time.
-type InstallTimeData struct {
+// InstallInfo defines the json file that defines installation time.
+type InstallInfo struct {
 	// InstallTime. Minute-precision time of installation in UTC.
 	InstallTime time.Time `json:"installTime"`
 }
 
-func loadInstallTime(appID, installTimeFileOverride string) (*InstallTimeData, error) {
+func loadInstallTime(appID, installTimeFileOverride string) (*InstallInfo, error) {
 	path := installTimeFileOverride
 	if path == "" {
 		dir, err := localstore.DefaultDir(appID)
@@ -37,7 +37,7 @@ func loadInstallTime(appID, installTimeFileOverride string) (*InstallTimeData, e
 		}
 		path = filepath.Join(dir, installTimeFileName)
 	}
-	var stored InstallTimeData
+	var stored InstallInfo
 
 	if err := localstore.LoadJSONFile(path, &stored); err != nil {
 		return nil, fmt.Errorf("could not load install time: %w", err)
@@ -45,10 +45,16 @@ func loadInstallTime(appID, installTimeFileOverride string) (*InstallTimeData, e
 
 	stored.InstallTime = stored.InstallTime.UTC().Truncate(installTimeResolution)
 
+	var zeroInfo InstallInfo
+
+	if stored.InstallTime == zeroInfo.InstallTime {
+		return nil, fmt.Errorf("invalid zero value for install time")
+	}
+
 	return &stored, nil
 }
 
-func storeInstallTime(appID, installTimeFileOverride string, data *InstallTimeData) error {
+func storeInstallTime(appID, installTimeFileOverride string, data *InstallInfo) error {
 	if installTimeFileOverride == "" {
 		dir, err := localstore.DefaultDir(appID)
 		if err != nil {
