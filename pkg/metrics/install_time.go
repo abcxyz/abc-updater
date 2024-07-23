@@ -16,8 +16,9 @@ package metrics
 
 import (
 	"fmt"
-	"github.com/abcxyz/abc-updater/pkg/localstore"
 	"path/filepath"
+
+	"github.com/abcxyz/abc-updater/pkg/localstore"
 )
 
 // installInfo defines the json file that defines installation time.
