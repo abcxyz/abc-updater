@@ -33,7 +33,8 @@ import (
 )
 
 const (
-	installIDFileName     = "id.json"
+	installTimeFileName   = "id.json"
+	installTimeResolution = time.Minute // Internal Use: Consult PWG before shortening.
 	maxErrorResponseBytes = 2048
 
 	// metricsKey points to the value in the context where the Client is stored.
@@ -59,9 +60,11 @@ type metricsConfig struct {
 type options struct {
 	httpClient *http.Client
 	lookuper   envconfig.Lookuper
-	// Optional override for install id file location. Mostly intended for testing.
-	// If empty uses default location.
-	installIDFileOverride string
+	// Optional override for install time file location. Mostly intended for
+	// testing. If empty uses default location.
+	installInfoFileOverride string
+	// Optional override for time for testing.
+	nowFn func() time.Time
 }
 
 // Option is the Client option type.
@@ -85,21 +88,29 @@ func WithLookuper(lookuper envconfig.Lookuper) Option {
 	}
 }
 
-// WithInstallIDFileOverride overrides the path where install ID file is stored.
-func WithInstallIDFileOverride(path string) Option {
+// WithInstallInfoFileOverride overrides the path where install time file is stored.
+func WithInstallInfoFileOverride(path string) Option {
 	return func(o *options) *options {
-		o.installIDFileOverride = path
+		o.installInfoFileOverride = path
+		return o
+	}
+}
+
+// withNowOverride overrides the current time for testing purposes.
+func withNowOverride(nowFn func() time.Time) Option {
+	return func(o *options) *options {
+		o.nowFn = nowFn
 		return o
 	}
 }
 
 type Client struct {
-	appID      string
-	appVersion string
-	installID  string
-	httpClient *http.Client
-	optOut     bool
-	config     *metricsConfig
+	appID       string
+	appVersion  string
+	installTime string
+	httpClient  *http.Client
+	optOut      bool
+	config      *metricsConfig
 }
 
 // New provides a Client based on provided values and options.
@@ -145,29 +156,37 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 		return nil, fmt.Errorf("failed to parse server URL: %w", err)
 	}
 
-	storedID, err := loadInstallID(appID, opts.installIDFileOverride)
-	var installID string
-	if err != nil || storedID == nil {
-		installID, err = generateInstallID()
-		if err != nil {
-			return nil, err
+	storedTime, err := loadInstallTime(appID, opts.installInfoFileOverride)
+	var installTime string
+
+	if err != nil {
+		var now time.Time
+		if opts.nowFn != nil {
+			now = opts.nowFn()
+		} else {
+			now = time.Now()
+		}
+		if installTimeBuf, err := now.UTC().Truncate(installTimeResolution).MarshalText(); err != nil {
+			return nil, fmt.Errorf("time.Now() could not be converted to RFC3339, check system clock: %w", err)
+		} else {
+			installTime = string(installTimeBuf)
 		}
 
-		if err = storeInstallID(appID, opts.installIDFileOverride, &InstallIDData{
-			InstallID: installID,
+		if err = storeInstallTime(appID, opts.installInfoFileOverride, &installInfo{
+			InstallTime: installTime,
 		}); err != nil {
-			logging.FromContext(ctx).DebugContext(ctx, "error storing InstallID", "error", err.Error())
+			logging.FromContext(ctx).DebugContext(ctx, "error storing InstallTime", "error", err.Error())
 		}
 	} else {
-		installID = storedID.InstallID
+		installTime = storedTime.InstallTime
 	}
 
 	return &Client{
-		appID:      appID,
-		appVersion: version,
-		installID:  installID,
-		httpClient: opts.httpClient,
-		config:     &c,
+		appID:       appID,
+		appVersion:  version,
+		installTime: installTime,
+		httpClient:  opts.httpClient,
+		config:      &c,
 	}, nil
 }
 
@@ -182,8 +201,8 @@ type SendMetricRequest struct {
 	// Only single item is used now, map used for flexibility in the future.
 	Metrics map[string]int64 `json:"metrics"`
 
-	// InstallID. Expected to be a random base64 value.
-	InstallID string `json:"installId"`
+	// InstallTime. Time of install in UTC. String in rfc3339 format.
+	InstallTime string `json:"installTime"`
 }
 
 // WriteMetric sends information about application usage, blocking until
@@ -199,10 +218,10 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(&SendMetricRequest{
-		AppID:      c.appID,
-		AppVersion: c.appVersion,
-		Metrics:    map[string]int64{name: count},
-		InstallID:  c.installID,
+		AppID:       c.appID,
+		AppVersion:  c.appVersion,
+		Metrics:     map[string]int64{name: count},
+		InstallTime: c.installTime,
 	}); err != nil {
 		return fmt.Errorf("failed to marshal metrics as json: %w", err)
 	}

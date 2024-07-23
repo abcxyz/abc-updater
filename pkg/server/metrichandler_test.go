@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/thejerf/slogassert"
 
@@ -35,6 +36,16 @@ import (
 
 // Assert testMetricsDB satisfies pkg.MetricsLookuper.
 var _ MetricsLookuper = (*testMetricsDB)(nil)
+
+var testInstallTime = mustMarshal(time.Date(2024, 7, 3, 2, 8, 0, 0, time.UTC))
+
+func mustMarshal(in time.Time) string {
+	buf, err := in.MarshalText()
+	if err != nil {
+		panic(fmt.Errorf("couldn't marshal time: %w", err))
+	}
+	return string(buf)
+}
 
 type testMetricsDB struct {
 	apps map[string]*AppMetrics
@@ -84,21 +95,21 @@ func TestHandleMetric(t *testing.T) {
 				},
 			}}},
 			body: marshalRequest(t, &metrics.SendMetricRequest{
-				AppID:      "test",
-				AppVersion: "1.0",
-				Metrics:    map[string]int64{"foo": 1},
-				InstallID:  "asdf",
+				AppID:       "test",
+				AppVersion:  "1.0",
+				Metrics:     map[string]int64{"foo": 1},
+				InstallTime: testInstallTime,
 			}),
 			wantStatus: 202,
 			wantLogs: map[*slogassert.LogMessageMatch]int{{
 				Message: "metric received",
 				Level:   slog.LevelInfo,
 				Attrs: map[string]any{
-					"metric.app_id":      "test",
-					"metric.app_version": "1.0",
-					"metric.name":        "foo",
-					"metric.count":       1,
-					"metric.install_id":  "asdf",
+					"metric.app_id":       "test",
+					"metric.app_version":  "1.0",
+					"metric.name":         "foo",
+					"metric.count":        1,
+					"metric.install_time": testInstallTime,
 				},
 				AllAttrsMatch: false,
 			}: 1},
@@ -119,7 +130,7 @@ func TestHandleMetric(t *testing.T) {
 					"foo": 1,
 					"bar": 2,
 				},
-				InstallID: "asdf",
+				InstallTime: testInstallTime,
 			}),
 			wantStatus: 202,
 			wantLogs: map[*slogassert.LogMessageMatch]int{
@@ -127,11 +138,11 @@ func TestHandleMetric(t *testing.T) {
 					Message: "metric received",
 					Level:   slog.LevelInfo,
 					Attrs: map[string]any{
-						"metric.app_id":      "test",
-						"metric.app_version": "1.0",
-						"metric.name":        "foo",
-						"metric.count":       1,
-						"metric.install_id":  "asdf",
+						"metric.app_id":       "test",
+						"metric.app_version":  "1.0",
+						"metric.name":         "foo",
+						"metric.count":        1,
+						"metric.install_time": testInstallTime,
 					},
 					AllAttrsMatch: false,
 				}: 1,
@@ -139,11 +150,11 @@ func TestHandleMetric(t *testing.T) {
 					Message: "metric received",
 					Level:   slog.LevelInfo,
 					Attrs: map[string]any{
-						"metric.app_id":      "test",
-						"metric.app_version": "1.0",
-						"metric.name":        "bar",
-						"metric.count":       2,
-						"metric.install_id":  "asdf",
+						"metric.app_id":       "test",
+						"metric.app_version":  "1.0",
+						"metric.name":         "bar",
+						"metric.count":        2,
+						"metric.install_time": testInstallTime,
 					},
 					AllAttrsMatch: false,
 				}: 1,
@@ -165,18 +176,18 @@ func TestHandleMetric(t *testing.T) {
 					"foo":     1,
 					"unknown": 2,
 				},
-				InstallID: "asdf",
+				InstallTime: testInstallTime,
 			}),
 			wantStatus: 202,
 			wantLogs: map[*slogassert.LogMessageMatch]int{{
 				Message: "metric received",
 				Level:   slog.LevelInfo,
 				Attrs: map[string]any{
-					"metric.app_id":      "test",
-					"metric.app_version": "1.0",
-					"metric.name":        "foo",
-					"metric.count":       1,
-					"metric.install_id":  "asdf",
+					"metric.app_id":       "test",
+					"metric.app_version":  "1.0",
+					"metric.name":         "foo",
+					"metric.count":        1,
+					"metric.install_time": testInstallTime,
 				},
 				AllAttrsMatch: false,
 			}: 1},
@@ -197,7 +208,7 @@ func TestHandleMetric(t *testing.T) {
 					"foo":     1,
 					"unknown": 2,
 				},
-				InstallID: "asdf",
+				InstallTime: testInstallTime,
 			}),
 			wantStatus: 404,
 		},

@@ -51,7 +51,7 @@ func HandleMetric(h *renderer.Renderer, db MetricsLookuper) http.Handler {
 				metricLogger.InfoContext(r.Context(), "metric received",
 					"app_id", metrics.AppID,
 					"app_version", metrics.AppVersion,
-					"install_id", metrics.InstallID,
+					"install_time", metrics.InstallTime,
 					"name", name,
 					"count", count)
 			} else {
