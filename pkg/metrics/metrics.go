@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/benbjohnson/clock"
 	"io"
 	"net/http"
 	"net/url"
@@ -28,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/sethvargo/go-envconfig"
 
 	"github.com/abcxyz/pkg/logging"

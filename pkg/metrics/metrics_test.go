@@ -18,12 +18,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/benbjohnson/clock"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/google/go-cmp/cmp"
 	"github.com/sethvargo/go-envconfig"
 
