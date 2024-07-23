@@ -58,7 +58,6 @@ Defined in `metrics.json` file hosted next to version info for updater.
 
 Example:
 ```
-# TODO: should types be defined/enforced?
 {
 	app_id: abc
 	allowed_metrics: [
@@ -70,4 +69,17 @@ Example:
 
 Server will look up all `metrics.json` files periodically. A `manifest.json`
 file tells the server the list of apps to look up.
+
+## Collected Metadata
+Along with each metric, some metadata is sent:
+- App ID
+- App Version
+- First Install DateTime with minute granularity.
+
+## Default Server
+The default server referenced in the client config is intended for projects in
+the `abcxyz` GitHub org. Metrics are retained for 24 months.
+
+For other projects, consumers of this library should host their own metrics
+server.
 
