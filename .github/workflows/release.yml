@@ -129,6 +129,11 @@ jobs:
           core.setOutput('created', true);
           core.info(`✅ Created release "${response.data.name}" at ${response.data.html_url}`);
 
+  build:
+    uses: './.github/workflows/autopush.yml'
+    needs:
+    - 'create-release'
+
   publish-release:
     runs-on: 'ubuntu-latest'
     environment: 'release'
@@ -136,7 +141,7 @@ jobs:
       contents: 'read'
       id-token: 'write'
     needs:
-    - 'create-release'
+    - 'build'
     steps:
     - name: 'Mint token'
       id: 'mint-token'
