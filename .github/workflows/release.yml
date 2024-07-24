@@ -128,6 +128,7 @@ jobs:
           });
           core.setOutput('created', true);
           core.info(`✅ Created release "${response.data.name}" at ${response.data.html_url}`);
+
   build:
     uses: './.github/workflows/autopush.yml'
     needs:
