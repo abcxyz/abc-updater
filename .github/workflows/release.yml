@@ -142,6 +142,7 @@ jobs:
       contents: 'read'
       id-token: 'write'
     needs:
+    - 'create-release'
     - 'build'
     steps:
     - name: 'Mint token'
