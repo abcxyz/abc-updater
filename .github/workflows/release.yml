@@ -133,6 +133,7 @@ jobs:
     uses: './.github/workflows/autopush.yml'
     needs:
     - 'create-release'
+    secrets: inherit
 
   publish-release:
     runs-on: 'ubuntu-latest'
