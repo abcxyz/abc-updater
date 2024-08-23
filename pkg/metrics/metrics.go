@@ -53,7 +53,7 @@ var noopWriterOnce = sync.OnceValue[*Client](func() *Client {
 type contextKey string
 
 type metricsConfig struct {
-	ServerURL string `env:"METRICS_URL, default=https://abc-updater-metrics.tycho.joonix.net"`
+	ServerURL string `env:"METRICS_URL, default=https://abc-metrics.tycho.joonix.net"`
 	NoMetrics bool   `env:"NO_METRICS"`
 }
 
