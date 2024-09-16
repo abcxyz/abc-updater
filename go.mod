@@ -10,7 +10,7 @@ require (
 	github.com/google/renameio v1.0.1
 	github.com/hashicorp/go-version v1.6.0
 	github.com/sethvargo/go-envconfig v1.0.0
-	github.com/thejerf/slogassert v0.3.2
+	github.com/thejerf/slogassert v0.3.3
 )
 
 require (

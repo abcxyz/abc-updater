@@ -255,11 +255,10 @@ func TestHandleMetric(t *testing.T) {
 			// Normally we wouldn't test log messages, but as that is the way metrics
 			// are being exported, it seems important to do so here.
 			for k, want := range tc.wantLogs {
-				// TODO: Switch to logHandler.Assert() if https://github.com/thejerf/slogassert/pull/5 is merged.
-				// This violates https://google.github.io/styleguide/go/decisions#assertion-libraries
-				// in it's current state, if pr is merged I will be able to avoid that
-				// path.
-				if got := logHandler.AssertSomePrecise(*k); got != want {
+				got := logHandler.Assert(func(lm slogassert.LogMessage) bool {
+					return k.Matches(lm)
+				})
+				if got != want {
 					t.Errorf("Unexpected number of logs containing [%v]. Got [%d], want [%d]", k, got, want)
 				}
 			}
