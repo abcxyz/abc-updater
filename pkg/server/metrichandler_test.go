@@ -29,6 +29,7 @@ import (
 
 	"github.com/thejerf/slogassert"
 
+	"github.com/abcxyz/abc-updater/internal/version"
 	"github.com/abcxyz/abc-updater/pkg/metrics"
 	"github.com/abcxyz/pkg/logging"
 	"github.com/abcxyz/pkg/renderer"
@@ -237,7 +238,7 @@ func TestHandleMetric(t *testing.T) {
 				t.Fatalf("failed to setup test: %s", err.Error())
 			}
 			req := httptest.NewRequest(http.MethodPost, "/sendMetrics", tc.body)
-			req.Header.Set("User-Agent", "github.com/abcxyz/abc-updater")
+			req.Header.Set("User-Agent", version.UserAgent)
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Accept", "application/json")
 			logHandler := slogassert.New(t, slog.LevelInfo, nil)

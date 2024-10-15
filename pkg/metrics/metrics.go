@@ -31,6 +31,7 @@ import (
 
 	"github.com/sethvargo/go-envconfig"
 
+	"github.com/abcxyz/abc-updater/internal/version"
 	"github.com/abcxyz/abc-updater/pkg/localstore"
 	"github.com/abcxyz/pkg/logging"
 )
@@ -257,7 +258,7 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 	if err != nil {
 		return fmt.Errorf("failed to create http request: %w", err)
 	}
-	req.Header.Set("User-Agent", "github.com/abcxyz/abc-updater")
+	req.Header.Set("User-Agent", version.UserAgent)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
