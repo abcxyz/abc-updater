@@ -116,14 +116,13 @@ func withNowOverride(nowFunc func() time.Time) Option {
 }
 
 type Client struct {
-	// optOut is a boolean that disables the client from sending any metrics.
+	// optOut disables the client from sending any metrics when true.
 	optOut bool
 
-	// appID, appVersion, and identifier are the identifies for a given
-	// installation.
-	appID      string
-	appVersion string
-	identifier string
+	// appID, appVersion, and installTime are metadata added to metrics.
+	appID       string
+	appVersion  string
+	installTime string
 
 	// httpClient is the cached HTTP client to use for metrics.
 	httpClient *http.Client
@@ -197,21 +196,21 @@ func New(ctx context.Context, appID, version string, opt ...Option) (*Client, er
 		return NoopWriter(), nil
 	}
 
-	// Get or create the installation identifier.
+	// Get or create the installTime.
 	installInfo, err := loadInstallInfo(client.installInfoFilePath)
 	if err != nil {
-		client.identifier = client.nowFunc().
+		client.installTime = client.nowFunc().
 			UTC().
 			Truncate(installTimeResolution).
 			Format(time.RFC3339Nano)
 
 		if err := storeInstallInfo(client.installInfoFilePath, &InstallInfo{
-			InstallTime: client.identifier,
+			InstallTime: client.installTime,
 		}); err != nil {
 			logging.FromContext(ctx).DebugContext(ctx, "failed to store new install time", "error", err.Error())
 		}
 	} else {
-		client.identifier = installInfo.InstallTime
+		client.installTime = installInfo.InstallTime
 	}
 
 	return client, nil
@@ -248,7 +247,7 @@ func (c *Client) WriteMetric(ctx context.Context, name string, count int64) erro
 		AppID:       c.appID,
 		AppVersion:  c.appVersion,
 		Metrics:     map[string]int64{name: count},
-		InstallTime: c.identifier,
+		InstallTime: c.installTime,
 	}); err != nil {
 		return fmt.Errorf("failed to marshal metrics as json: %w", err)
 	}
