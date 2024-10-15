@@ -16,49 +16,32 @@ package metrics
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/abcxyz/abc-updater/pkg/localstore"
 )
 
-// installInfo defines the json file that defines installation time.
-type installInfo struct {
-	// InstallTime. Minute-precision time of installation in UTC.
+// InstallInfo defines the json file that defines installation time.
+type InstallInfo struct {
+	// InstallTime is a minute-precision time of installation in UTC.
 	InstallTime string `json:"installTime"`
 }
 
-func loadInstallTime(appID, installTimeFileOverride string) (*installInfo, error) {
-	path := installTimeFileOverride
-	if path == "" {
-		dir, err := localstore.DefaultDir(appID)
-		if err != nil {
-			return nil, fmt.Errorf("could not calculate install time path: %w", err)
-		}
-		path = filepath.Join(dir, installTimeFileName)
-	}
-	var stored installInfo
-
-	if err := localstore.LoadJSONFile(path, &stored); err != nil {
-		return nil, fmt.Errorf("could not load install time: %w", err)
+func loadInstallInfo(pth string) (*InstallInfo, error) {
+	var stored InstallInfo
+	if err := localstore.LoadJSONFile(pth, &stored); err != nil {
+		return nil, fmt.Errorf("failed to load install info: %w", err)
 	}
 
 	if stored.InstallTime == "" {
-		return nil, fmt.Errorf("invalid zero value for install time")
+		return nil, fmt.Errorf("invalid zero value for install info")
 	}
 
 	return &stored, nil
 }
 
-func storeInstallTime(appID, installTimeFileOverride string, data *installInfo) error {
-	if installTimeFileOverride == "" {
-		dir, err := localstore.DefaultDir(appID)
-		if err != nil {
-			return fmt.Errorf("could not calculate install time path: %w", err)
-		}
-		installTimeFileOverride = filepath.Join(dir, installTimeFileName)
-	}
-	if err := localstore.StoreJSONFile(installTimeFileOverride, data); err != nil {
-		return fmt.Errorf("could not store install time: %w", err)
+func storeInstallInfo(pth string, data *InstallInfo) error {
+	if err := localstore.StoreJSONFile(pth, data); err != nil {
+		return fmt.Errorf("failed to store install info: %w", err)
 	}
 	return nil
 }
