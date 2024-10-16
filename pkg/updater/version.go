@@ -31,6 +31,7 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/sethvargo/go-envconfig"
 
+	internalversion "github.com/abcxyz/abc-updater/internal/version"
 	"github.com/abcxyz/abc-updater/pkg/localstore"
 )
 
@@ -183,7 +184,7 @@ func CheckAppVersion(ctx context.Context, params *CheckVersionParams) (string, e
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("User-Agent", "github.com/abcxyz/abc-updater")
+	req.Header.Set("User-Agent", internalversion.UserAgent)
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := client.Do(req)
