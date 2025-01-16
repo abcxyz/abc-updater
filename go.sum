@@ -1,5 +1,5 @@
-github.com/abcxyz/pkg v1.1.4 h1:GE59w+XjuUkhfnuAY0ffw8IE+nKDcW7M6chBZLKQqm8=
-github.com/abcxyz/pkg v1.1.4/go.mod h1:oNJANNMDik+8WfOc8lgHSMdGn1+e/62VBrc25VN5cAM=
+github.com/abcxyz/pkg v1.2.0 h1:kooqe4Cw8iNwuB6uKttlduUcEpAmD8+/cvs8fLmz/a0=
+github.com/abcxyz/pkg v1.2.0/go.mod h1:umDPdwCdCBcyLpD+6Gpv9Uj5GbwMmyA7vAEy/VtrQ+A=
 github.com/go-logr/logr v1.4.2 h1:6pFjapn8bFcIbiKo3XT4j/BhANplGihG6tvd+8rYgrY=
 github.com/go-logr/logr v1.4.2/go.mod h1:9T104GzyrTigFIr8wt5mBrctHMim0Nb2HLGrmQ40KvY=
 github.com/go-logr/stdr v1.2.2 h1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag=
