@@ -2,8 +2,10 @@ module github.com/abcxyz/abc-updater
 
 go 1.23
 
+toolchain go1.23.4
+
 require (
-	github.com/abcxyz/pkg v1.1.4
+	github.com/abcxyz/pkg v1.2.0
 	github.com/google/go-cmp v0.6.0
 	github.com/google/renameio v1.0.1
 	github.com/hashicorp/go-version v1.7.0
