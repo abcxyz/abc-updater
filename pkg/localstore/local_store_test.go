@@ -85,7 +85,6 @@ func TestLoadJSONFile(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			base := t.TempDir()
@@ -156,7 +155,6 @@ func TestStoreJSONFile(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			base := t.TempDir()
