@@ -229,7 +229,7 @@ func TestHandleMetric(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 			h, err := renderer.New(ctx, nil,
 				renderer.WithOnError(func(err error) {
 					t.Fatalf("failed to render: %s", err.Error())

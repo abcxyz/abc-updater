@@ -1,4 +1,4 @@
-FROM golang:1.23 as backend-builder
+FROM golang:latest as backend-builder
 ENV CGO_ENABLED=0
 ENV GOPROXY=https://proxy.golang.org,direct
 WORKDIR /app
