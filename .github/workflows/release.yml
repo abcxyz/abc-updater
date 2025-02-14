@@ -31,7 +31,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-
   create-release:
     if: |-
       ${{ startsWith(github.event.head_commit.message, 'Release: v') }}
@@ -132,6 +131,9 @@ jobs:
 
   build:
     uses: './.github/workflows/autopush.yml'
+    permissions:
+      contents: 'read'
+      id-token: 'write'
     needs:
       - 'create-release'
     secrets: inherit
