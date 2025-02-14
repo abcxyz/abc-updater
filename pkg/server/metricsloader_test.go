@@ -15,7 +15,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -30,7 +29,7 @@ import (
 
 func setupTestServer(tb testing.TB, allowed map[string]*AllowedMetricsResponse, returnErrorCode int) *httptest.Server {
 	tb.Helper()
-	ren, err := renderer.New(context.Background(), nil, renderer.WithOnError(func(err error) {
+	ren, err := renderer.New(tb.Context(), nil, renderer.WithOnError(func(err error) {
 		tb.Fatalf("error rendering json in test server: %s", err.Error())
 	}))
 	if err != nil {
@@ -302,7 +301,7 @@ func TestMetricsDB_Update(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 
 			ts := setupTestServer(t, tc.serverMap, tc.returnErrorCode)
 

@@ -155,7 +155,7 @@ func TestCheckAppVersion(t *testing.T) {
 				}
 			}
 
-			output, err := CheckAppVersion(context.Background(), params)
+			output, err := CheckAppVersion(t.Context(), params)
 			if diff := testutil.DiffErrString(err, tc.wantErr); diff != "" {
 				t.Error(diff)
 			}
@@ -217,7 +217,7 @@ func TestCheckAppVersionAsync(t *testing.T) {
 			}())
 			t.Cleanup(ts.Close)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			if tc.timeout > 0 {
 				var done func()
 				ctx, done = context.WithTimeout(ctx, tc.timeout)

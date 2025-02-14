@@ -99,7 +99,7 @@ func TestNew(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				ctx := context.Background()
+				ctx := t.Context()
 
 				installPath := t.TempDir() + "/" + installTimeFileName
 				if tc.installTime != "" {
@@ -192,7 +192,7 @@ func TestNew(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				ctx := context.Background()
+				ctx := t.Context()
 				got, err := New(ctx, tc.appID, "1", WithLookuper(envconfig.MapLookuper(tc.env)))
 				if diff := testutil.DiffErrString(err, tc.wantError); diff != "" {
 					t.Errorf("unexpected error: %s", diff)
@@ -270,7 +270,7 @@ func TestWriteMetric(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			var gotRequest *SendMetricRequest
 			ts := httptest.NewServer(func() http.Handler {
@@ -343,9 +343,9 @@ func TestContext(t *testing.T) {
 	client2 := defaultClient()
 	client2.installTime = testInstallTime2
 
-	checkFromContext(context.Background(), t, NoopWriter())
+	checkFromContext(t.Context(), t, NoopWriter())
 
-	ctx := WithClient(context.Background(), client1)
+	ctx := WithClient(t.Context(), client1)
 	checkFromContext(ctx, t, client1)
 
 	ctx = WithClient(ctx, client2)
