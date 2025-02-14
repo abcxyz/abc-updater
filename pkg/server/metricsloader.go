@@ -110,13 +110,11 @@ func diffApps(ctx context.Context, oldDefs, newDefs map[string]*AppMetrics) {
 	}
 	logger := logging.FromContext(ctx)
 	for k := range newDefs {
-		k := k
 		if _, ok := oldDefs[k]; !ok {
 			go logger.InfoContext(ctx, "Loaded new application for metrics.", "app_id", k)
 		}
 	}
 	for k := range oldDefs {
-		k := k
 		if _, ok := newDefs[k]; !ok {
 			go logger.InfoContext(ctx, "Removed application for metrics.", "app_id", k)
 		}
