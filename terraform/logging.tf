@@ -27,7 +27,7 @@ resource "google_logging_project_sink" "metrics" {
   name                   = "abc-updater-metrics-sink"
   destination            = "logging.googleapis.com/${google_logging_project_bucket_config.metrics.name}"
   unique_writer_identity = true
-  filter = <<EOF
+  filter                 = <<EOF
   resource.type="cloud_run_revision" AND
   resource.labels.service_name="${var.metrics_service_name}" AND
   jsonPayload.message="metric received"

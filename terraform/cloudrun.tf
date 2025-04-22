@@ -20,9 +20,9 @@ locals {
 resource "google_cloud_run_v2_service" "metrics" {
   project = var.project_id
 
-  name         = var.metrics_service_name
-  location     = var.compute_region
-  ingress      = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  name     = var.metrics_service_name
+  location = var.compute_region
+  ingress  = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
   template {
     containers {
       image = "gcr.io/cloudrun/placeholder"
@@ -84,6 +84,7 @@ resource "google_service_account_iam_member" "cloud_run_sa_user" {
 
 resource "google_project_service_identity" "run_agent" {
   provider = google-beta
+
   project = var.project_id
 
   service = "run.googleapis.com"

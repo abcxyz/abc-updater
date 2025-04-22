@@ -1,4 +1,4 @@
-name: 'Lint and test'
+name: 'test'
 
 on:
   push:
@@ -15,8 +15,5 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  go_lint:
-    uses: 'abcxyz/actions/.github/workflows/go-lint.yml@main' # ratchet:exclude
-
   go_test:
     uses: 'abcxyz/actions/.github/workflows/go-test.yml@main' # ratchet:exclude
