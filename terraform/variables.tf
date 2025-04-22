@@ -79,6 +79,6 @@ variable "ci_service_account_email" {
 }
 
 variable "metrics_service_host" {
-  type = string
+  type        = string
   description = "The host (foo.bar.com) domain traffice for metrics server will come on."
 }

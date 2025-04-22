@@ -98,7 +98,7 @@ resource "google_compute_url_map" "default" {
   }
 
   path_matcher {
-    name = "metrics"
+    name            = "metrics"
     default_service = google_compute_backend_service.metrics_backend.id
   }
 }
@@ -181,6 +181,6 @@ resource "google_compute_backend_service" "metrics_backend" {
   }
 
   log_config {
-    enable      = false
+    enable = false
   }
 }

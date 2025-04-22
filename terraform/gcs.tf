@@ -32,6 +32,6 @@ resource "google_storage_bucket_iam_member" "object_admins" {
 
 resource "google_storage_bucket_iam_member" "object_viewers" {
   bucket = google_storage_bucket.default.name
-  role = "roles/storage.objectViewer"
+  role   = "roles/storage.objectViewer"
   member = "allUsers"
 }
