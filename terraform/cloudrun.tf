@@ -84,7 +84,8 @@ resource "google_service_account_iam_member" "cloud_run_sa_user" {
 
 resource "google_project_service_identity" "run_agent" {
   provider = google-beta
-  project  = var.project_id
+
+  project = var.project_id
 
   service = "run.googleapis.com"
 
