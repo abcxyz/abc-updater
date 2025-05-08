@@ -83,3 +83,4 @@ the `abcxyz` GitHub org. Metrics are retained for 24 months.
 For other projects, consumers of this library should host their own metrics
 server.
 
+This is a LSC
