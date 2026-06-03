@@ -20,9 +20,9 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - 'ubuntu-latest'
-          - 'macos-latest'
-          - 'windows-latest'
+          - '"ubuntu-latest"'
+          - '"macos-latest"'
+          - '"windows-latest"'
     uses: 'abcxyz/actions/.github/workflows/go-test.yml@main' # ratchet:exclude
     with:
       runs-on: '${{ matrix.os }}'
