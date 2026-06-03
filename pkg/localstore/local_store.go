@@ -17,13 +17,10 @@
 package localstore
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"github.com/google/renameio"
 )
 
 // DefaultDir returns the default local updater storage directory given an appID.
@@ -48,25 +45,5 @@ func LoadJSONFile(path string, data any) error {
 	if err := json.NewDecoder(f).Decode(data); err != nil {
 		return fmt.Errorf("failed to load json file: %w", err)
 	}
-	return nil
-}
-
-// StoreJSONFile marshals data from the given object into file with given path. File and directory tree will be
-// created if they do not exist. data cannot be nil.
-func StoreJSONFile(path string, data any) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("failed to create directory for json file at %s: %w", dir, err)
-	}
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(data); err != nil {
-		return fmt.Errorf("failed to encode JSON: %w", err)
-	}
-
-	if err := renameio.WriteFile(path, buf.Bytes(), 0o644); err != nil {
-		return fmt.Errorf("failed to save json file at %s: %w", path, err)
-	}
-
 	return nil
 }
